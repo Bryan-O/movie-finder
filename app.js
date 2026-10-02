@@ -171,6 +171,7 @@
     genres: { movie: [], tv: [] },
     providers: [],
     showAllServices: false,
+    view: "browse",
     req: 0,
   };
 
@@ -181,6 +182,7 @@
     more: $("#more"), setup: $("#setup"), keyForm: $("#key-form"), keyInput: $("#key-input"), keyError: $("#key-error"),
     forgetKey: $("#forget-key"), details: $("#details"), detailsBody: $("#details-body"),
     buddy: $("#buddy"), buddyBody: $("#buddy-body"), buddyOpen: $("#buddy-open"),
+    listOpen: $("#list-open"), listCount: $("#list-count"),
   };
 
   // ---------- Rendering: filters ----------
@@ -243,22 +245,85 @@
     renderGenres();
   }
 
-  // ---------- Rendering: results ----------
+  // ---------- Watchlist (saved in this browser) ----------
   const keyOf = (m) => `${m.kind}-${m.id}`;
+  const SAVED_FIELDS = ["kind", "id", "title", "date", "poster_path", "vote_average", "vote_count", "genre_ids", "overview"];
+  let watchlist = store.get("watchlist", []).filter((m) => m && m.kind && m.id);
+  // Titles seen on screen, so a ♡ tap can save them without another lookup.
+  const known = new Map();
+  const remember = (m) => known.set(keyOf(m), m);
+  const isSaved = (key) => watchlist.some((m) => keyOf(m) === key);
+
+  function saveBtn(m, icon = false) {
+    const on = isSaved(keyOf(m));
+    return `<button type="button" class="${icon ? "save" : "secondary"}" data-save="${keyOf(m)}" ${icon ? "data-icon" : ""} aria-pressed="${on}" aria-label="${on ? "Remove from" : "Save to"} my list">${saveLabel(on, icon)}</button>`;
+  }
+  const saveLabel = (on, icon) => (icon ? (on ? "♥" : "♡") : on ? "♥ Saved" : "♡ Save for later");
+
+  function toggleSaved(key) {
+    if (isSaved(key)) watchlist = watchlist.filter((m) => keyOf(m) !== key);
+    else {
+      const m = known.get(key);
+      if (!m) return;
+      watchlist.unshift(Object.fromEntries(SAVED_FIELDS.map((f) => [f, m[f]])));
+    }
+    store.set("watchlist", watchlist);
+    syncSaved();
+    if (state.view === "list" && !isSaved(key)) {
+      const wrap = el.grid.querySelector(`[data-wrap="${key}"]`);
+      if (wrap) wrap.remove();
+      listStatus();
+    }
+  }
+
+  function syncSaved() {
+    document.querySelectorAll("[data-save]").forEach((b) => {
+      const on = isSaved(b.dataset.save);
+      b.setAttribute("aria-pressed", on);
+      b.setAttribute("aria-label", `${on ? "Remove from" : "Save to"} my list`);
+      b.textContent = saveLabel(on, b.hasAttribute("data-icon"));
+    });
+    el.listCount.textContent = watchlist.length;
+    el.listCount.hidden = !watchlist.length;
+  }
+
+  function listStatus() {
+    const n = watchlist.length;
+    el.status.innerHTML = n
+      ? `Your list · ${n} saved. Logos show where each one is streaming now in ${esc(regionName())}. <button type="button" class="link-btn" data-leave-list>← Back to browsing</button>`
+      : `Nothing saved yet. Tap ♡ on any movie or show to save it for later. <button type="button" class="link-btn" data-leave-list>← Back to browsing</button>`;
+  }
+
+  function showList() {
+    state.req++; // cancel any in-flight search/browse
+    state.view = "list";
+    el.listOpen.setAttribute("aria-pressed", "true");
+    el.grid.innerHTML = "";
+    el.more.hidden = true;
+    appendCards(watchlist.map((m) => ({ m })));
+    listStatus();
+    window.scrollTo({ top: el.status.getBoundingClientRect().top + scrollY - 80, behavior: "smooth" });
+  }
+
+  // ---------- Rendering: results ----------
 
   function cardHTML(m) {
     const poster = m.poster_path
       ? `<img src="${IMG}w342${m.poster_path}" alt="" loading="lazy">`
       : `<div class="noimg">${KINDS[m.kind].emoji}</div>`;
     const rating = m.vote_count > 10 ? `<span class="rating">★ ${m.vote_average.toFixed(1)}</span>` : "";
-    return `<button type="button" class="card" data-id="${m.id}" data-kind="${m.kind}">
-      <div class="poster">${poster}${rating}</div>
-      <div class="card-body">
-        <div class="card-title">${esc(m.title)}</div>
-        <div class="card-year">${year(m.date)}</div>
-        <div class="logos" data-logos="${keyOf(m)}"><span class="skeleton" style="width:60px;height:24px;border-radius:6px"></span></div>
-      </div>
-    </button>`;
+    remember(m);
+    return `<div class="card-wrap" data-wrap="${keyOf(m)}">
+      <button type="button" class="card" data-id="${m.id}" data-kind="${m.kind}">
+        <div class="poster">${poster}${rating}</div>
+        <div class="card-body">
+          <div class="card-title">${esc(m.title)}</div>
+          <div class="card-year">${year(m.date)}</div>
+          <div class="logos" data-logos="${keyOf(m)}"><span class="skeleton" style="width:60px;height:24px;border-radius:6px"></span></div>
+        </div>
+      </button>
+      ${saveBtn(m, true)}
+    </div>`;
   }
 
   function logosHTML(list) {
@@ -270,7 +335,10 @@
   function appendCards(items) {
     el.grid.insertAdjacentHTML("beforeend", items.map(({ m }) => cardHTML(m)).join(""));
     for (const { m, s } of items) {
-      const fill = (st) => { const slot = el.grid.querySelector(`[data-logos="${keyOf(m)}"]`); if (slot) slot.innerHTML = logosHTML(st.list); };
+      const fill = (st) => {
+        const slot = el.grid.querySelector(`[data-logos="${keyOf(m)}"]`);
+        if (slot) slot.innerHTML = st.list.length ? logosHTML(st.list) : `<span class="more">Not streaming here right now</span>`;
+      };
       if (s) fill(s);
       else streamingFor(m.kind, m.id).then(fill).catch(() => fill({ list: [] }));
     }
@@ -330,6 +398,8 @@
 
   async function run(reset = true) {
     if (!apiKey()) return showSetup();
+    state.view = "browse";
+    el.listOpen.setAttribute("aria-pressed", "false");
     const req = ++state.req;
     if (reset) {
       state.page = 0; state.totalPages = 0; el.grid.innerHTML = "";
@@ -462,6 +532,8 @@
     try {
       const raw = await cached(`/${kind}/${id}`, { append_to_response: "watch/providers,videos" });
       const m = norm(raw, kind);
+      m.genre_ids = m.genre_ids || (m.genres || []).map((g) => g.id);
+      remember(m);
       const s = pickStreaming(m["watch/providers"]);
       const trailer = ((m.videos && m.videos.results) || []).find((v) => v.site === "YouTube" && v.type === "Trailer");
       let facts;
@@ -494,6 +566,7 @@
             <div class="actions">
               ${s.link ? `<a class="primary" href="${esc(s.link)}" target="_blank" rel="noopener">Where to watch ↗</a>` : ""}
               ${trailer ? `<a class="secondary" href="https://www.youtube.com/watch?v=${esc(trailer.key)}" target="_blank" rel="noopener">▶ Trailer</a>` : ""}
+              ${saveBtn(m)}
             </div>
           </div>
         </div>`;
@@ -749,6 +822,7 @@
     const [pick, ...rest] = remaining;
     const alts = rest.slice(0, 3);
     buddy.shown.add(pick.id);
+    remember(pick);
     el.buddyBody.innerHTML = `<div class="buddy-step"><div class="spinner"></div></div>`;
     const s = await streamingFor(pick.kind, pick.id).catch(() => ({ list: [] }));
     const emoji = KINDS[pick.kind].emoji;
@@ -764,6 +838,7 @@
           ${s.list.length ? `<div class="logos">${logosHTML(s.list)}</div>` : ""}
           <div class="actions">
             <button class="primary" type="button" data-details="${pick.id}" data-kind="${pick.kind}">Where to watch</button>
+            ${saveBtn(pick)}
             <button class="secondary" type="button" data-buddy="shuffle">🎲 Not feeling it</button>
             <button class="link-btn" type="button" data-buddy="restart">Start over</button>
           </div>
@@ -788,8 +863,16 @@
     run();
   }
 
+  // ♡ buttons live on cards, in details and in Buddy Mode.
+  document.addEventListener("click", (ev) => { const b = ev.target.closest("[data-save]"); if (b) toggleSaved(b.dataset.save); });
+  el.listOpen.addEventListener("click", () => (state.view === "list" ? run() : showList()));
+
   el.kind.addEventListener("click", (ev) => { const b = ev.target.closest("[data-kind]"); if (b) setKind(b.dataset.kind); });
-  el.status.addEventListener("click", (ev) => { const b = ev.target.closest("[data-switch-kind]"); if (b) setKind(b.dataset.switchKind); });
+  el.status.addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-switch-kind]");
+    if (b) setKind(b.dataset.switchKind);
+    if (ev.target.closest("[data-leave-list]")) run();
+  });
 
   el.searchForm.addEventListener("submit", (ev) => {
     ev.preventDefault();
@@ -832,7 +915,7 @@
     state.region = el.region.value;
     store.set("region", state.region);
     await loadRegionData().catch(handleError);
-    run();
+    if (state.view === "list") showList(); else run();
   });
   el.reset.addEventListener("click", () => {
     Object.assign(state, { mood: null, genre: "", sort: "popularity.desc", query: "" });
@@ -883,6 +966,7 @@
 
   // ---------- Boot ----------
   async function start() {
+    syncSaved();
     renderKind();
     renderMoods();
     if (!apiKey()) { showSetup(); return; }
