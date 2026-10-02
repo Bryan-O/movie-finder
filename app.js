@@ -419,24 +419,32 @@
     return p;
   }
 
-  async function run(reset = true) {
+  // soft: keep the current results on screen (faded) until the new ones arrive,
+  // so live search doesn't flash empty on every keystroke.
+  async function run(reset = true, soft = false) {
     if (!apiKey()) return showSetup();
+    const wasList = state.view === "list";
     state.view = "browse";
     el.listOpen.setAttribute("aria-pressed", "false");
     const req = ++state.req;
+    soft = soft && reset && !wasList && el.grid.querySelector(".card[data-id]");
     if (reset) {
-      state.page = 0; state.totalPages = 0; el.grid.innerHTML = "";
+      state.page = 0; state.totalPages = 0;
+      if (!soft) el.grid.innerHTML = "";
       if (state.sort === "random" && !state.query) state.page = Math.floor(Math.random() * 6);
     }
     const K = KINDS[state.kind];
     el.more.hidden = true;
     el.status.textContent = state.query ? `Checking where "${state.query}" is streaming…` : `Finding ${K.many} you can stream right now…`;
-    skeletons(reset ? 12 : 6);
+    if (soft) el.grid.classList.add("refreshing");
+    else skeletons(reset ? 12 : 6);
     try {
       let items;
       if (state.query) items = await searchPage(req, state.kind);
       else items = await discoverPage(req);
       if (req !== state.req) return;
+      el.grid.classList.remove("refreshing");
+      if (soft) el.grid.innerHTML = "";
       clearSkeletons();
       if (state.sort === "random" && !state.query) shuffle(items);
       appendCards(items);
@@ -455,6 +463,7 @@
       el.more.hidden = state.page >= state.totalPages;
     } catch (e) {
       if (req !== state.req) return;
+      el.grid.classList.remove("refreshing");
       clearSkeletons();
       handleError(e);
     }
@@ -503,7 +512,9 @@
       looked++;
       const candidates = data.results.map((m) => norm(m, kind))
         .filter((m) => (!state.genre || m.genre_ids.includes(+state.genre)) && moodFilter(m));
-      const checked = await mapLimit(candidates, 8, async (m) => ({ m, s: await streamingFor(kind, m.id).catch(() => ({ list: [] })) }));
+      // Skip lookups once a newer keystroke has replaced this search.
+      const checked = await mapLimit(candidates, 8, async (m) => ({ m, s: reqFresh(req) ? await streamingFor(kind, m.id).catch(() => ({ list: [] })) : { list: [] } }));
+      if (!reqFresh(req)) return [];
       for (const x of checked) {
         const ok = x.s.list.length && (!state.services.size || x.s.list.some((p) => state.services.has(p.provider_id)));
         if (ok) hits.push(x);
@@ -898,13 +909,21 @@
     if (ev.target.closest("[data-leave-list]")) run();
   });
 
+  // Search as you type, once the typing pauses. Enter searches right away.
+  let typingTimer = 0;
   el.searchForm.addEventListener("submit", (ev) => {
     ev.preventDefault();
+    clearTimeout(typingTimer);
     state.query = el.q.value.trim();
-    run();
+    run(true, true);
   });
-  // Clearing the search box goes back to browsing.
-  el.q.addEventListener("input", () => { if (!el.q.value.trim() && state.query) { state.query = ""; run(); } });
+  el.q.addEventListener("input", () => {
+    clearTimeout(typingTimer);
+    const q = el.q.value.trim();
+    if (q === state.query || q.length === 1) return; // one letter is too broad to be useful
+    // Clearing the box goes straight back to browsing.
+    typingTimer = setTimeout(() => { state.query = q; run(true, true); }, q ? 350 : 0);
+  });
 
   el.moods.addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-mood]");
