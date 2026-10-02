@@ -4,9 +4,9 @@ A free, simple movie and TV finder: search every streaming service at once and s
 
 - **Movies or TV Shows**: flip the switch at the top; search, moods, filters and Buddy Mode all follow it. Search a show while on Movies and it offers to switch.
 - **Search**: results update as you type, and only titles you can stream now show up (subscription, free, or free with ads).
-- **Browse**: filter by mood (😂 Make me laugh, 😱 Scare me, 🧠 Mind-bending…), genre, and sort order.
+- **Browse**: finish the sentence "I'm in the mood for…" (a good laugh, a proper scare, a mind-bender…), then narrow by genre and sort order.
 - **Your list**: tap the bookmark on any poster to save it for later. "Your list" shows everything you saved, with where each one is streaming right now. Saved in your browser, no account needed.
-- **My services**: tap the services you pay for to see only what's on them (remembered in your browser).
+- **I've got**: tap the services you pay for to see only what's on them (remembered in your browser).
 - **Buddy Mode**: you and a friend each answer 6 quick questions, and StreamScout picks a movie or show you'll both like, with a match score for each of you.
   Tap **Share this pick** to send the pick as a link; it opens with your match scores and where to stream it in their country.
 - Works in any country. Pick yours in the top-right.
