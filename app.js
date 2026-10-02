@@ -139,6 +139,29 @@
     return { list, link: r.link };
   }
 
+  // TMDB doesn't expose per-service deep links, so open the service's own search
+  // for the title. Anything not listed falls back to the TMDB/JustWatch watch page,
+  // whose links go straight to the title on each service.
+  const SERVICE_SEARCH = [
+    [/netflix/i, (q) => `https://www.netflix.com/search?q=${q}`],
+    [/amazon channel|prime video|amazon video|mx player/i, (q) => `https://www.primevideo.com/search?phrase=${q}`],
+    [/hulu/i, (q) => `https://www.hulu.com/search?q=${q}`],
+    [/disney/i, (q) => `https://www.disneyplus.com/search?q=${q}`],
+    [/^(hbo )?max\b/i, (q) => `https://play.hbomax.com/search?q=${q}`],
+    [/apple tv/i, (q) => `https://tv.apple.com/search?term=${q}`],
+    [/paramount/i, (q) => `https://www.paramountplus.com/search/?q=${q}`],
+    [/peacock/i, (q) => `https://www.peacocktv.com/watch/search?q=${q}`],
+    [/tubi/i, (q) => `https://tubitv.com/search/${q}`],
+    [/crunchyroll/i, (q) => `https://www.crunchyroll.com/search?q=${q}`],
+    [/youtube/i, (q) => `https://www.youtube.com/results?search_query=${q}`],
+    [/roku/i, (q) => `https://therokuchannel.roku.com/search/${q}`],
+    [/plex/i, (q) => `https://watch.plex.tv/search?q=${q}`],
+  ];
+  function serviceLink(p, title, fallback) {
+    const hit = SERVICE_SEARCH.find(([re]) => re.test(p.provider_name));
+    return hit ? hit[1](encodeURIComponent(title)) : fallback || `https://www.google.com/search?q=${encodeURIComponent(`watch ${title} on ${p.provider_name}`)}`;
+  }
+
   async function keywordId(name) {
     const data = await cached("/search/keyword", { query: name });
     const hit = (data.results || []).find((k) => k.name.toLowerCase() === name) || (data.results || [])[0];
@@ -559,9 +582,10 @@
             <div class="where">
               <h3>Stream it now in ${esc(regionName())}</h3>
               ${s.list.length ? `<div class="providers">${s.list.map((p) => `
-                <div class="provider">${p.logo_path ? `<img src="${IMG}w92${p.logo_path}" alt="">` : ""}
+                <a class="provider" href="${esc(serviceLink(p, m.title, s.link))}" target="_blank" rel="noopener" title="Open ${esc(m.title)} on ${esc(p.provider_name)}">${p.logo_path ? `<img src="${IMG}w92${p.logo_path}" alt="">` : ""}
                   <div>${esc(p.provider_name)}<small>${TYPE_LABEL[p.type]}${state.services.has(p.provider_id) ? " · ✓ you have this" : ""}</small></div>
-                </div>`).join("")}</div>` : `<p class="why">Not streaming here right now.</p>`}
+                  <span class="go" aria-hidden="true">↗</span>
+                </a>`).join("")}</div>` : `<p class="why">Not streaming here right now.</p>`}
             </div>
             <div class="actions">
               ${s.link ? `<a class="primary" href="${esc(s.link)}" target="_blank" rel="noopener">Where to watch ↗</a>` : ""}

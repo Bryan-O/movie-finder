@@ -169,6 +169,10 @@ select {
 .providers { display: flex; flex-wrap: wrap; gap: 10px; }
 .provider { display: flex; align-items: center; gap: 8px; background: var(--surface-2); border-radius: 10px; padding: 6px 10px 6px 6px; font-size: .9rem; }
 .provider img { width: 32px; height: 32px; border-radius: 8px; }
+a.provider { color: var(--text); text-decoration: none; border: 1px solid transparent; transition: border-color .15s, transform .15s; }
+a.provider:hover, a.provider:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
+.provider .go { color: var(--muted); font-size: .85rem; margin-left: 2px; }
+a.provider:hover .go { color: var(--accent); }
 .provider small { color: var(--muted); display: block; font-size: .75rem; }
 .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
 .actions a { text-decoration: none; }
