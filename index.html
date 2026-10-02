@@ -5,101 +5,130 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>StreamScout — find where it's streaming</title>
   <meta name="description" content="Search every streaming service at once and find a movie or TV show you can watch right now.">
-  <meta property="og:title" content="StreamScout 🍿">
+  <meta property="og:title" content="StreamScout">
   <meta property="og:description" content="Find where any movie or show is streaming right now, browse by mood, and let Buddy Mode pick something you'll both like.">
   <meta property="og:type" content="website">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍿</text></svg>">
+  <meta name="theme-color" content="#f3ede2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16120f" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect x='6' y='14' width='52' height='36' rx='4' fill='%23c8402a'/><rect x='14' y='22' width='36' height='14' rx='2' fill='%23f3ede2'/><circle cx='22' cy='29' r='3' fill='%23c8402a'/><circle cx='42' cy='29' r='3' fill='%23c8402a'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,400..800;1,9..144,400..800&family=Instrument+Sans:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="./">🍿 StreamScout</a>
+    <a class="brand" href="./">
+      <span class="wordmark">StreamScout</span>
+      <span class="brand-note">every service, one shelf</span>
+    </a>
     <div class="topbar-right">
-      <button id="list-open" class="list-btn" type="button" aria-pressed="false">♡ <span class="list-label">My list</span> <span id="list-count" class="count" hidden>0</span></button>
       <label class="region">
-        <span class="sr-only">Country</span>
-        <select id="region" title="Your country (streaming catalogs differ by country)"></select>
+        <span class="region-label">Watching from</span>
+        <select id="region" title="Streaming catalogs differ by country"></select>
       </label>
+      <button id="list-open" class="list-btn" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-6-4.2-6 4.2z"/></svg>
+        <span class="list-label">Your list</span>
+        <span id="list-count" class="count" hidden>0</span>
+      </button>
     </div>
   </header>
 
   <main>
     <section class="hero">
-      <h1>What do you want to watch?</h1>
-      <p class="tagline">Search every streaming service at once. Only shows movies and TV you can stream <em>right now</em>.</p>
-      <div id="kind" class="segmented" role="group" aria-label="Movies or TV shows">
-        <button type="button" data-kind="movie" aria-pressed="true">🎬 Movies</button>
-        <button type="button" data-kind="tv" aria-pressed="false">📺 TV Shows</button>
+      <div class="hero-main">
+        <p class="eyebrow">Tonight's big question</p>
+        <h1>What are we <span class="scribble">watching<svg viewBox="0 0 300 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 16c38-7 70-9 104-6 26 2 40 7 70 5 36-3 70-9 118-6"/></svg></span> tonight?</h1>
+        <p class="tagline">We check every streaming service so you don't have to. If it's here, you can press play on it right now.</p>
+
+        <div id="kind" class="kind-toggle" role="group" aria-label="Movies or TV shows">
+          <button type="button" data-kind="movie" aria-pressed="true">Movies<svg class="circle" viewBox="0 0 120 50" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M62 5C30 3 6 11 5 25c-1 14 26 21 57 20 30-1 54-9 53-22C114 11 92 4 58 6"/></svg></button>
+          <span class="slash" aria-hidden="true">/</span>
+          <button type="button" data-kind="tv" aria-pressed="false">TV shows<svg class="circle" viewBox="0 0 120 50" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M62 5C30 3 6 11 5 25c-1 14 26 21 57 20 30-1 54-9 53-22C114 11 92 4 58 6"/></svg></button>
+        </div>
+
+        <form id="search-form" class="search" role="search">
+          <input id="q" type="search" placeholder="Type a title…" autocomplete="off" aria-label="Search by title">
+          <button type="submit">Find it <span aria-hidden="true">→</span></button>
+        </form>
       </div>
-      <form id="search-form" class="search" role="search">
-        <input id="q" type="search" placeholder="Search a movie title…" autocomplete="off" aria-label="Search movies">
-        <button type="submit">Search</button>
-      </form>
-      <button id="buddy-open" class="buddy-btn" type="button">👯 Buddy Mode: can't decide together? Let's pick one for you</button>
+
+      <aside class="ticket-promo">
+        <div class="stub" aria-hidden="true"><span>ADMIT TWO</span></div>
+        <div class="promo-body">
+          <p class="eyebrow">Buddy Mode</p>
+          <h2>Can't agree on anything?</h2>
+          <p>Two people, a handful of quick questions, one pick you'll both actually enjoy.</p>
+          <button id="buddy-open" class="primary" type="button">Settle it <span aria-hidden="true">→</span></button>
+        </div>
+      </aside>
     </section>
 
     <section class="filters" aria-label="Filters">
       <div class="filter-row">
-        <span class="filter-label">Mood</span>
-        <div id="moods" class="chips scroll"></div>
+        <span class="filter-label">I'm in the mood for</span>
+        <div id="moods" class="chips"></div>
       </div>
 
       <div class="filter-row">
-        <span class="filter-label">My services</span>
-        <div id="services" class="chips wrap"></div>
+        <span class="filter-label">I've got</span>
+        <div id="services" class="chips"></div>
       </div>
 
       <div class="filter-row controls">
-        <label>Genre
+        <label><span class="filter-label">Genre</span>
           <select id="genre"><option value="">Any genre</option></select>
         </label>
-        <label>Sort
+        <label><span class="filter-label">Sort by</span>
           <select id="sort">
-            <option value="popularity.desc">Trending</option>
-            <option value="vote_average.desc">Top rated</option>
-            <option value="primary_release_date.desc">Newest</option>
+            <option value="popularity.desc">What's popular</option>
+            <option value="vote_average.desc">Best reviewed</option>
+            <option value="primary_release_date.desc">Newest first</option>
             <option value="random">Surprise me</option>
           </select>
         </label>
-        <button id="reset" type="button" class="link-btn">Reset filters</button>
+        <button id="reset" type="button" class="link-btn">Clear it all</button>
       </div>
     </section>
 
     <section id="setup" class="setup" hidden>
-      <h2>One-time setup</h2>
-      <p>StreamScout uses the free <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a> movie database. Paste a TMDB API key to get started. It's stored only in this browser.</p>
+      <h2>One quick bit of setup</h2>
+      <p>StreamScout runs on the free <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a> movie database. Paste a TMDB API key and you're in. It stays in this browser.</p>
       <ol>
-        <li>Create a free account at <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener">themoviedb.org</a>.</li>
-        <li>Go to <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">Settings → API</a> and request a key (choose "Developer", personal use).</li>
-        <li>Copy either the <b>API Key</b> or the <b>API Read Access Token</b> and paste it below.</li>
+        <li>Make a free account at <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener">themoviedb.org</a>.</li>
+        <li>Head to <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">Settings → API</a> and ask for a key (pick "Developer").</li>
+        <li>Copy the <b>API Key</b> or the <b>API Read Access Token</b> and paste it here.</li>
       </ol>
       <form id="key-form" class="search">
-        <input id="key-input" type="text" placeholder="Paste your TMDB key or token" autocomplete="off" aria-label="TMDB API key">
+        <input id="key-input" type="text" placeholder="Paste your TMDB key" autocomplete="off" aria-label="TMDB API key">
         <button type="submit">Save</button>
       </form>
       <p id="key-error" class="error" hidden></p>
     </section>
 
     <section class="results">
-      <p id="status" class="status" aria-live="polite"></p>
+      <div class="results-head">
+        <p id="status" class="status" aria-live="polite"></p>
+      </div>
       <div id="grid" class="grid"></div>
-      <div class="more-wrap"><button id="more" type="button" class="secondary" hidden>Load more</button></div>
+      <div class="more-wrap"><button id="more" type="button" class="secondary" hidden>Show me more</button></div>
     </section>
   </main>
 
   <footer>
-    <img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg" alt="TMDB" height="12">
-    <p>Movie data from <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a>. Streaming availability from <a href="https://www.justwatch.com/" target="_blank" rel="noopener">JustWatch</a>. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+    <p>Film and TV data from <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a>. Where-to-watch info from <a href="https://www.justwatch.com/" target="_blank" rel="noopener">JustWatch</a>. This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+    <img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg" alt="TMDB" height="10">
     <button id="forget-key" type="button" class="link-btn" hidden>Change API key</button>
   </footer>
 
   <dialog id="details" class="modal">
-    <button class="close" type="button" data-close aria-label="Close">✕</button>
+    <button class="close" type="button" data-close aria-label="Close">×</button>
     <div id="details-body"></div>
   </dialog>
 
   <dialog id="buddy" class="modal buddy">
-    <button class="close" type="button" data-close aria-label="Close">✕</button>
+    <button class="close" type="button" data-close aria-label="Close">×</button>
     <div id="buddy-body"></div>
   </dialog>
 

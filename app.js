@@ -14,21 +14,21 @@
   const CURRENT_YEAR = new Date().getFullYear();
   const TODAY = new Date().toISOString().slice(0, 10);
 
-  const KINDS = { movie: { one: "movie", many: "movies", emoji: "🎬" }, tv: { one: "show", many: "TV shows", emoji: "📺" } };
+  const KINDS = { movie: { one: "movie", many: "movies" }, tv: { one: "show", many: "TV shows" } };
 
   // Moods are written in TMDB movie genre ids; TV equivalents are derived below.
   const MOODS = [
-    { id: "laugh", emoji: "😂", label: "Make me laugh", genres: [35], without: [27, 53] },
-    { id: "cozy", emoji: "🛋️", label: "Cozy & comforting", genres: [10751, 16, 35], without: [27, 53, 80, 10752] },
-    { id: "thrill", emoji: "💥", label: "Adrenaline rush", genres: [28, 53] },
-    { id: "scary", emoji: "😱", label: "Scare me", genres: [27] },
-    { id: "romance", emoji: "💘", label: "Swoon-worthy", genres: [10749] },
-    { id: "mind", emoji: "🧠", label: "Mind-bending", genres: [878, 9648] },
-    { id: "cry", emoji: "😭", label: "A good cry", genres: [18], without: [35, 27], extra: { "vote_average.gte": 7 } },
-    { id: "escape", emoji: "🌍", label: "Epic escape", genres: [12, 14] },
-    { id: "crime", emoji: "🕵️", label: "Whodunit", genres: [80, 9648] },
-    { id: "learn", emoji: "📚", label: "Learn something", genres: [99, 36] },
-    { id: "acclaimed", emoji: "🏆", label: "Critics' darlings", genres: [], extra: { "vote_average.gte": 7.8, "vote_count.gte": 1500 } },
+    { id: "laugh", label: "a good laugh", genres: [35], without: [27, 53] },
+    { id: "cozy", label: "something cozy", genres: [10751, 16, 35], without: [27, 53, 80, 10752] },
+    { id: "thrill", label: "an adrenaline rush", genres: [28, 53] },
+    { id: "scary", label: "a proper scare", genres: [27] },
+    { id: "romance", label: "a love story", genres: [10749] },
+    { id: "mind", label: "a mind-bender", genres: [878, 9648] },
+    { id: "cry", label: "a good cry", genres: [18], without: [35, 27], extra: { "vote_average.gte": 7 } },
+    { id: "escape", label: "an epic escape", genres: [12, 14] },
+    { id: "crime", label: "a whodunit", genres: [80, 9648] },
+    { id: "learn", label: "learning something", genres: [99, 36] },
+    { id: "acclaimed", label: "whatever the critics loved", genres: [], extra: { "vote_average.gte": 7.8, "vote_count.gte": 1500 } },
   ];
   const MOOD = Object.fromEntries(MOODS.map((m) => [m.id, m]));
 
@@ -211,12 +211,12 @@
   // ---------- Rendering: filters ----------
   function renderKind() {
     el.kind.querySelectorAll("[data-kind]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.kind === state.kind));
-    el.q.placeholder = state.kind === "tv" ? "Search a TV show…" : "Search a movie title…";
+    el.q.placeholder = state.kind === "tv" ? "Type a show… try “The Bear”" : "Type a title… try “Paddington”";
   }
 
   function renderMoods() {
     el.moods.innerHTML = MOODS.map((m) =>
-      `<button type="button" class="chip" data-mood="${m.id}" aria-pressed="${state.mood === m.id}">${m.emoji} ${esc(m.label)}</button>`
+      `<button type="button" class="chip" data-mood="${m.id}" aria-pressed="${state.mood === m.id}">${esc(m.label)}</button>`
     ).join("");
   }
 
@@ -235,8 +235,8 @@
       (p.logo_path ? `<img src="${IMG}w45${p.logo_path}" alt="" loading="lazy">` : "") +
       `${esc(p.provider_name)}</button>`
     ).join("") +
-      (all.length > TOP_SERVICES ? `<button type="button" class="link-btn" data-toggle-services>${state.showAllServices ? "Show fewer" : `+${all.length - shown.length} more`}</button>` : "") +
-      (state.services.size ? `<button type="button" class="link-btn" data-clear-services>Clear</button>` : "");
+      (all.length > TOP_SERVICES ? `<button type="button" class="link-btn" data-toggle-services>${state.showAllServices ? "fewer" : `${all.length - shown.length} more`}</button>` : "") +
+      (state.services.size ? `<button type="button" class="link-btn" data-clear-services>any service</button>` : "");
   }
 
   async function loadRegionData() {
@@ -272,7 +272,7 @@
   const keyOf = (m) => `${m.kind}-${m.id}`;
   const SAVED_FIELDS = ["kind", "id", "title", "date", "poster_path", "vote_average", "vote_count", "genre_ids", "overview"];
   let watchlist = store.get("watchlist", []).filter((m) => m && m.kind && m.id);
-  // Titles seen on screen, so a ♡ tap can save them without another lookup.
+  // Titles seen on screen, so a bookmark tap can save them without another lookup.
   const known = new Map();
   const remember = (m) => known.set(keyOf(m), m);
   const isSaved = (key) => watchlist.some((m) => keyOf(m) === key);
@@ -281,7 +281,8 @@
     const on = isSaved(keyOf(m));
     return `<button type="button" class="${icon ? "save" : "secondary"}" data-save="${keyOf(m)}" ${icon ? "data-icon" : ""} aria-pressed="${on}" aria-label="${on ? "Remove from" : "Save to"} my list">${saveLabel(on, icon)}</button>`;
   }
-  const saveLabel = (on, icon) => (icon ? (on ? "♥" : "♡") : on ? "♥ Saved" : "♡ Save for later");
+  const BOOKMARK = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h12v17l-6-4.2-6 4.2z"/></svg>`;
+  const saveLabel = (on, icon) => (icon ? BOOKMARK : on ? "On your list ✓" : "Save for later");
 
   function toggleSaved(key) {
     if (isSaved(key)) watchlist = watchlist.filter((m) => keyOf(m) !== key);
@@ -304,7 +305,7 @@
       const on = isSaved(b.dataset.save);
       b.setAttribute("aria-pressed", on);
       b.setAttribute("aria-label", `${on ? "Remove from" : "Save to"} my list`);
-      b.textContent = saveLabel(on, b.hasAttribute("data-icon"));
+      b.innerHTML = saveLabel(on, b.hasAttribute("data-icon"));
     });
     el.listCount.textContent = watchlist.length;
     el.listCount.hidden = !watchlist.length;
@@ -313,8 +314,8 @@
   function listStatus() {
     const n = watchlist.length;
     el.status.innerHTML = n
-      ? `Your list · ${n} saved. Logos show where each one is streaming now in ${esc(regionName())}. <button type="button" class="link-btn" data-leave-list>← Back to browsing</button>`
-      : `Nothing saved yet. Tap ♡ on any movie or show to save it for later. <button type="button" class="link-btn" data-leave-list>← Back to browsing</button>`;
+      ? `Your list: ${n} saved. The logos show where each one's streaming today. <button type="button" class="link-btn" data-leave-list>back to browsing</button>`
+      : `Nothing saved yet. Hit the bookmark on any poster and it'll wait for you here. <button type="button" class="link-btn" data-leave-list>back to browsing</button>`;
   }
 
   function showList() {
@@ -333,7 +334,7 @@
   function cardHTML(m) {
     const poster = m.poster_path
       ? `<img src="${IMG}w342${m.poster_path}" alt="" loading="lazy">`
-      : `<div class="noimg">${KINDS[m.kind].emoji}</div>`;
+      : `<div class="noimg">${esc(m.title)}</div>`;
     const rating = m.vote_count > 10 ? `<span class="rating">★ ${m.vote_average.toFixed(1)}</span>` : "";
     remember(m);
     return `<div class="card-wrap" data-wrap="${keyOf(m)}">
@@ -342,7 +343,7 @@
         <div class="card-body">
           <div class="card-title">${esc(m.title)}</div>
           <div class="card-year">${year(m.date)}</div>
-          <div class="logos" data-logos="${keyOf(m)}"><span class="skeleton" style="width:60px;height:24px;border-radius:6px"></span></div>
+          <div class="logos" data-logos="${keyOf(m)}"><span class="skeleton" style="width:64px;height:20px;border-radius:4px"></span></div>
         </div>
       </button>
       ${saveBtn(m, true)}
@@ -360,7 +361,7 @@
     for (const { m, s } of items) {
       const fill = (st) => {
         const slot = el.grid.querySelector(`[data-logos="${keyOf(m)}"]`);
-        if (slot) slot.innerHTML = st.list.length ? logosHTML(st.list) : `<span class="more">Not streaming here right now</span>`;
+        if (slot) slot.innerHTML = st.list.length ? logosHTML(st.list) : `<span class="more">not streaming here today</span>`;
       };
       if (s) fill(s);
       else streamingFor(m.kind, m.id).then(fill).catch(() => fill({ list: [] }));
@@ -369,7 +370,7 @@
 
   function skeletons(n) {
     el.grid.insertAdjacentHTML("beforeend", Array.from({ length: n }, () =>
-      `<div class="card" data-skeleton><div class="poster skeleton"></div><div class="card-body"><div class="skeleton" style="height:14px;border-radius:4px"></div><div class="skeleton" style="height:12px;width:40%;border-radius:4px"></div></div></div>`
+      `<div class="card-wrap" data-skeleton><div class="poster skeleton"></div><div class="card-body"><div class="skeleton" style="height:15px;border-radius:2px"></div><div class="skeleton" style="height:11px;width:35%;border-radius:2px"></div></div></div>`
     ).join(""));
   }
   const clearSkeletons = () => el.grid.querySelectorAll("[data-skeleton]").forEach((n) => n.remove());
@@ -435,7 +436,7 @@
     }
     const K = KINDS[state.kind];
     el.more.hidden = true;
-    el.status.textContent = state.query ? `Checking where "${state.query}" is streaming…` : `Finding ${K.many} you can stream right now…`;
+    el.status.textContent = state.query ? `Looking for “${state.query}”…` : `Pulling ${K.many} off the shelves…`;
     if (soft) el.grid.classList.add("refreshing");
     else skeletons(reset ? 12 : 6);
     try {
@@ -452,13 +453,13 @@
       const onMine = state.services.size ? " on your services" : "";
       if (!count) {
         el.status.textContent = state.query
-          ? `No streaming ${K.many} found for "${state.query}"${onMine} in ${regionName()}. It might only be in theaters or for rent right now.`
-          : "Nothing matches those filters. Try another mood or fewer filters.";
+          ? `No ${K.many} called “${state.query}” streaming${onMine} in ${regionName()} right now. It might be in cinemas, or rent-only for the moment.`
+          : "Nothing on the shelf matches all that. Try a different mood, or loosen a filter.";
         if (state.query && reset) suggestOtherKind(req);
       } else {
         el.status.textContent = state.query
-          ? `${count} ${count === 1 ? K.one : K.many} for "${state.query}" streaming now${onMine} in ${regionName()}`
-          : `${K.many[0].toUpperCase() + K.many.slice(1)} streaming now${onMine} in ${regionName()}`;
+          ? `${count} ${count === 1 ? K.one : K.many} matching “${state.query}”, streaming now${onMine}.`
+          : `${state.mood ? `${K.many[0].toUpperCase() + K.many.slice(1)} for ${MOOD[state.mood].label}` : `${K.many[0].toUpperCase() + K.many.slice(1)} you can watch tonight`}${onMine}.`;
       }
       el.more.hidden = state.page >= state.totalPages;
     } catch (e) {
@@ -478,7 +479,7 @@
       const checked = await mapLimit(top, 8, async (m) => (await streamingFor(other, m.id).catch(() => ({ list: [] }))).list.length);
       const n = checked.filter(Boolean).length;
       if (req !== state.req || !n) return;
-      el.status.innerHTML = `${esc(el.status.textContent)} <button type="button" class="link-btn" data-switch-kind="${other}">But ${n} ${n === 1 ? KINDS[other].one : KINDS[other].many} match. Show ${KINDS[other].many} →</button>`;
+      el.status.innerHTML = `${esc(el.status.textContent)} <button type="button" class="link-btn" data-switch-kind="${other}">Found ${n} ${n === 1 ? KINDS[other].one : KINDS[other].many} by that name, though. Show me</button>`;
     } catch { /* suggestion is best-effort */ }
   }
 
@@ -533,7 +534,7 @@
       return;
     }
     console.error(e);
-    el.status.textContent = "Something went wrong talking to the movie database. Please try again in a moment.";
+    el.status.textContent = "The movie database isn't answering. Give it a moment and try again.";
   }
 
   // ---------- Setup (only when no key is configured for the site) ----------
@@ -561,7 +562,7 @@
   function hm(mins) { return mins ? (mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`) : ""; }
 
   async function openDetails(kind, id) {
-    el.detailsBody.innerHTML = `<div class="spinner"></div>`;
+    el.detailsBody.innerHTML = `<div class="pass"><div class="spinner"></div></div>`;
     if (!el.details.open) el.details.showModal();
     try {
       const raw = await cached(`/${kind}/${id}`, { append_to_response: "watch/providers,videos" });
@@ -580,51 +581,51 @@
       } else {
         facts = [year(m.date), hm(m.runtime)];
       }
-      facts.push(m.vote_count > 10 ? `★ ${m.vote_average.toFixed(1)}` : "", (m.genres || []).map((g) => g.name).join(", "));
+      facts.push(m.vote_count > 10 ? `★ ${m.vote_average.toFixed(1)}` : "", (m.genres || []).map((g) => g.name).join(" / "));
       el.detailsBody.innerHTML = `
         <div class="backdrop" style="${m.backdrop_path ? `background-image:url('${IMG}w1280${m.backdrop_path}')` : ""}"></div>
         <div class="detail">
           ${m.poster_path ? `<img class="dposter" src="${IMG}w342${m.poster_path}" alt="">` : "<div></div>"}
-          <div>
+          <div class="detail-text">
             <h2>${esc(m.title)}</h2>
             <div class="meta">${facts.filter(Boolean).map(esc).join(" · ")}</div>
-            ${m.tagline ? `<p><em>${esc(m.tagline)}</em></p>` : ""}
-            <p>${esc(m.overview || "No description available.")}</p>
+            ${m.tagline ? `<p class="quote">“${esc(m.tagline)}”</p>` : ""}
+            <p>${esc(m.overview || "No synopsis on file for this one.")}</p>
             <div class="where">
-              <h3>Stream it now in ${esc(regionName())}</h3>
+              <h3>Where to stream it in ${esc(regionName())}</h3>
               ${s.list.length ? `<div class="providers">${s.list.map((p) => `
-                <a class="provider" href="${esc(serviceLink(p, m.title, s.link))}" target="_blank" rel="noopener" title="Open ${esc(m.title)} on ${esc(p.provider_name)}">${p.logo_path ? `<img src="${IMG}w92${p.logo_path}" alt="">` : ""}
-                  <div>${esc(p.provider_name)}<small>${TYPE_LABEL[p.type]}${state.services.has(p.provider_id) ? " · ✓ you have this" : ""}</small></div>
-                  <span class="go" aria-hidden="true">↗</span>
-                </a>`).join("")}</div>` : `<p class="why">Not streaming here right now.</p>`}
+                <a class="provider" href="${esc(serviceLink(p, m.title, s.link))}" target="_blank" rel="noopener" title="Open ${esc(m.title)} on ${esc(p.provider_name)}">${p.logo_path ? `<img src="${IMG}w92${p.logo_path}" alt="">` : "<span></span>"}
+                  <span><b>${esc(p.provider_name)}</b><small>${TYPE_LABEL[p.type]}${state.services.has(p.provider_id) ? " · you have this" : ""}</small></span>
+                  <span class="go" aria-hidden="true">Open ↗</span>
+                </a>`).join("")}</div>` : `<p class="none-here">Not streaming here right now. Check back soon, these things change.</p>`}
             </div>
             <div class="actions">
-              ${s.link ? `<a class="primary" href="${esc(s.link)}" target="_blank" rel="noopener">Where to watch ↗</a>` : ""}
-              ${trailer ? `<a class="secondary" href="https://www.youtube.com/watch?v=${esc(trailer.key)}" target="_blank" rel="noopener">▶ Trailer</a>` : ""}
               ${saveBtn(m)}
+              ${trailer ? `<a class="secondary" href="https://www.youtube.com/watch?v=${esc(trailer.key)}" target="_blank" rel="noopener">Watch the trailer</a>` : ""}
+              ${s.link ? `<a class="link-btn" href="${esc(s.link)}" target="_blank" rel="noopener">All options on JustWatch</a>` : ""}
             </div>
           </div>
         </div>`;
     } catch (e) {
-      el.detailsBody.innerHTML = `<p class="buddy-step error">Couldn't load this title. Please try again.</p>`;
+      el.detailsBody.innerHTML = `<div class="pass"><h2>Couldn't pull that one up.</h2><p class="hint">Give it another go in a moment.</p></div>`;
     }
   }
 
   // ---------- Buddy mode ----------
-  const NOPE_GENRES = [[27, "😱 Horror"], [10749, "💘 Romance"], [16, "🧸 Animation"], [10402, "🎵 Musicals"], [99, "📚 Documentary"], [10752, "🪖 War"], [37, "🤠 Western"], [878, "👽 Sci-fi"], [14, "🧙 Fantasy"], [18, "🎭 Heavy drama"]];
+  const NOPE_GENRES = [[27, "Horror"], [10749, "Romance"], [16, "Animation"], [10402, "Musicals"], [99, "Documentaries"], [10752, "War films"], [37, "Westerns"], [878, "Sci-fi"], [14, "Fantasy"], [18, "Heavy drama"]];
   const BUDDY_QS = [
-    { id: "moods", q: "What are you in the mood for?", hint: "Pick up to 2", multi: 2,
-      options: MOODS.filter((m) => m.id !== "acclaimed").map((m) => ({ value: m.id, label: `${m.emoji} ${m.label}` })) },
-    { id: "brain", q: "How much brainpower is left in the tank?",
-      options: [{ value: "low", label: "🫠 Running on fumes" }, { value: "mid", label: "🙂 A normal amount" }, { value: "high", label: "🤓 Bring on the plot twists" }] },
-    { id: "length", q: "How long can you commit?", movieOnly: true,
-      options: [{ value: 100, label: "⏱️ Under 100 minutes" }, { value: 135, label: "🎬 A normal movie (up to ~2h15)" }, { value: 0, label: "🏔️ Epic? I'm in" }] },
-    { id: "era", q: "Pick an era",
-      options: [{ value: "classic", label: "📼 Classics (before 1990)" }, { value: "retro", label: "💿 90s & 2000s" }, { value: "modern", label: "📱 2010 and newer" }, { value: "any", label: "🤷 Don't care" }] },
-    { id: "nope", q: "Any hard no's?", hint: "Pick as many as you like, or skip", multi: 99, optional: true,
+    { id: "moods", q: "What are you in the mood for?", hint: "Pick one or two.", multi: 2,
+      options: MOODS.filter((m) => m.id !== "acclaimed").map((m) => ({ value: m.id, label: m.label[0].toUpperCase() + m.label.slice(1) })) },
+    { id: "brain", q: "How's the brain doing tonight?",
+      options: [{ value: "low", label: "Running on fumes" }, { value: "mid", label: "Fine, I guess" }, { value: "high", label: "Sharp. Bring on the plot twists" }] },
+    { id: "length", q: "How long have you got?", movieOnly: true,
+      options: [{ value: 100, label: "Under 100 minutes, please" }, { value: 135, label: "A normal movie, about two hours" }, { value: 0, label: "Clear the evening, I'm in" }] },
+    { id: "era", q: "Any particular era?",
+      options: [{ value: "classic", label: "Old classics, before 1990" }, { value: "retro", label: "The 90s and 2000s" }, { value: "modern", label: "2010 or newer" }, { value: "any", label: "Don't mind at all" }] },
+    { id: "nope", q: "Anything you can't stand?", hint: "Tick whatever applies, or skip it.", multi: 99, optional: true,
       options: NOPE_GENRES.map(([value, label]) => ({ value, label })) },
     { id: "fame", q: "Crowd-pleaser or hidden gem?",
-      options: [{ value: "crowd", label: "🍿 Crowd-pleaser" }, { value: "gem", label: "💎 Hidden gem" }, { value: "either", label: "⚖️ Either works" }] },
+      options: [{ value: "crowd", label: "Crowd-pleaser" }, { value: "gem", label: "Hidden gem" }, { value: "either", label: "Either's fine" }] },
   ];
   const ERAS = { classic: [1900, 1989], retro: [1990, 2009], modern: [2010, CURRENT_YEAR], any: [1900, CURRENT_YEAR] };
 
@@ -645,28 +646,29 @@
 
   function renderBuddyNames() {
     el.buddyBody.innerHTML = `<div class="buddy-step">
-      <h2>👯 Buddy Mode</h2>
-      <p class="hint">Each of you answers a few quick questions on this device. Then we'll find something you'll <em>both</em> like${state.services.size ? ", on your services" : ""}.</p>
+      <div class="who">Buddy Mode</div>
+      <h2>Who's watching tonight?</h2>
+      <p class="hint">You'll each answer a few quick questions on this screen, no peeking. Then we'll find something you'll <em>both</em> enjoy${state.services.size ? " on the services you've got" : ""}.</p>
       <form data-names>
         <div class="names">
-          <input name="a" placeholder="Your name" value="${esc(buddy.names[0])}" maxlength="20" aria-label="Player 1 name">
-          <input name="b" placeholder="Buddy's name" value="${esc(buddy.names[1])}" maxlength="20" aria-label="Player 2 name">
+          <label>First up<input name="a" placeholder="Your name" value="${esc(buddy.names[0])}" maxlength="20"></label>
+          <label>Then<input name="b" placeholder="Your buddy" value="${esc(buddy.names[1])}" maxlength="20"></label>
         </div>
-        <p class="hint">What are we watching?</p>
+        <p class="hint" style="margin-bottom:10px">And tonight it's…</p>
         <div class="segmented" data-buddy-kind>
-          ${Object.entries(KINDS).map(([k, K]) => `<button type="button" data-bkind="${k}" aria-pressed="${buddy.kind === k}">${K.emoji} A ${K.one}</button>`).join("")}
+          ${Object.entries(KINDS).map(([k, K]) => `<button type="button" data-bkind="${k}" aria-pressed="${buddy.kind === k}">a ${K.one}</button>`).join("")}
         </div>
-        <div class="step-nav"><span></span><button class="primary" type="submit">Let's go →</button></div>
+        <div class="step-nav"><span></span><button class="primary" type="submit">Let's start <span aria-hidden="true">→</span></button></div>
       </form>
     </div>`;
   }
 
   function renderPass() {
     el.buddyBody.innerHTML = `<div class="pass">
-      <div class="big">🔄</div>
-      <h2>Pass it to ${esc(pname(1))}!</h2>
-      <p class="hint">No peeking at ${esc(pname(0))}'s answers 👀</p>
-      <button class="primary" type="button" data-buddy="pass">I'm ${esc(pname(1))}, let's go</button>
+      <div class="big">Psst.</div>
+      <h2>Hand it over to ${esc(pname(1))}.</h2>
+      <p class="hint">${esc(pname(0))}'s answers are locked in. No peeking.</p>
+      <button class="primary" type="button" data-buddy="pass">I'm ${esc(pname(1))}, go on</button>
     </div>`;
   }
 
@@ -677,14 +679,14 @@
     const total = buddy.qs.length * 2;
     const done = buddy.player * buddy.qs.length + buddy.q;
     el.buddyBody.innerHTML = `<div class="buddy-step">
-      <div class="progress"><div style="width:${(done / total) * 100}%"></div></div>
-      <div class="who">${esc(pname(buddy.player))} · ${buddy.q + 1}/${buddy.qs.length}</div>
+      <div class="progress" aria-hidden="true">${Array.from({ length: total }, (_, i) => `<span class="tick${i < done ? " done" : i === done ? " now" : ""}"></span>`).join("")}</div>
+      <div class="who">${esc(pname(buddy.player))} · question ${buddy.q + 1} of ${buddy.qs.length}</div>
       <h2>${esc(Q.q)}</h2>
       <p class="hint">${esc(Q.hint || "")}</p>
-      <div class="options">${Q.options.map((o) => `<button type="button" class="option" data-opt="${esc(o.value)}" aria-pressed="${sel.includes(o.value)}">${esc(o.label)}</button>`).join("")}</div>
+      <div class="options${Q.multi ? " multi" : ""}">${Q.options.map((o, i) => `<button type="button" class="option" data-opt="${esc(o.value)}" aria-pressed="${sel.includes(o.value)}"><span class="key">${String.fromCharCode(65 + i)}</span>${esc(o.label)}</button>`).join("")}</div>
       <div class="step-nav">
-        <button type="button" class="secondary" data-buddy="back">← Back</button>
-        ${Q.multi ? `<button type="button" class="primary" data-buddy="next" ${!Q.optional && !sel.length ? "disabled" : ""}>${Q.optional && !sel.length ? "Skip →" : "Next →"}</button>` : ""}
+        <button type="button" class="link-btn" data-buddy="back">Back</button>
+        ${Q.multi ? `<button type="button" class="primary" data-buddy="next" ${!Q.optional && !sel.length ? "disabled" : ""}>${Q.optional && !sel.length ? "Skip this one" : "Next"} <span aria-hidden="true">→</span></button>` : ""}
       </div>
     </div>`;
   }
@@ -793,7 +795,7 @@
 
   async function findBuddyPick() {
     const K = KINDS[buddy.kind];
-    el.buddyBody.innerHTML = `<div class="pass"><div class="spinner"></div><h2>Finding your perfect ${K.one}…</h2><p class="hint">Checking every streaming service${state.services.size ? " you have" : ""}</p></div>`;
+    el.buddyBody.innerHTML = `<div class="pass"><div class="spinner"></div><h2>Rummaging through the shelves…</h2><p class="hint">Weighing up both your answers against every ${K.one} streaming${state.services.size ? " on your services" : ""}.</p></div>`;
     try {
       const plan = buddyPlan();
       const path = `/discover/${plan.kind}`;
@@ -828,29 +830,30 @@
       showBuddyPick();
     } catch (e) {
       if (e instanceof KeyError) { el.buddy.close(); handleError(e); return; }
-      el.buddyBody.innerHTML = `<div class="pass"><h2>Hmm, that didn't work</h2><p class="hint">Couldn't reach the movie database. Try again?</p><button class="primary" type="button" data-buddy="retry">Try again</button></div>`;
+      el.buddyBody.innerHTML = `<div class="pass"><h2>The shelves wouldn't open.</h2><p class="hint">We couldn't reach the movie database. Your answers are safe, so give it another try.</p><button class="primary" type="button" data-buddy="retry">Try again</button></div>`;
     }
   }
 
   function whyText(plan) {
     const [A, B] = buddy.answers;
     const sharedMoods = (A.moods || []).filter((m) => (B.moods || []).includes(m));
-    const lbl = (id) => `${MOOD[id].emoji} ${MOOD[id].label.toLowerCase()}`;
+    const lbl = (id) => MOOD[id].label;
+    const list = (a) => (a.length > 1 ? `${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}` : a[0]);
     const parts = [];
-    if (sharedMoods.length) parts.push(`You both wanted ${sharedMoods.map(lbl).join(" and ")}.`);
-    else if ((A.moods || []).length && (B.moods || []).length) parts.push(`A blend of ${pname(0)}'s ${lbl(A.moods[0])} and ${pname(1)}'s ${lbl(B.moods[0])}.`);
-    if (plan.runtime && !plan.relaxed) parts.push(`Under ${plan.runtime} minutes.`);
-    if (plan.nopeMovie.length) parts.push(`No ${plan.nopeMovie.map((g) => (NOPE_GENRES.find(([id]) => id === g) || [0, ""])[1].replace(/^\S+\s/, "").toLowerCase()).join(", ")}.`);
-    if (plan.fame === "gem") parts.push("A hidden gem, as requested 💎");
-    if (plan.relaxed >= 2) parts.push("(We had to stretch your answers a bit to find something streaming.)");
+    if (sharedMoods.length) parts.push(`You were both after ${list(sharedMoods.map(lbl))}.`);
+    else if ((A.moods || []).length && (B.moods || []).length) parts.push(`${pname(0)} wanted ${lbl(A.moods[0])}, ${pname(1)} wanted ${lbl(B.moods[0])}. This one does a bit of both.`);
+    if (plan.runtime && !plan.relaxed) parts.push(`It's under ${plan.runtime} minutes.`);
+    if (plan.nopeMovie.length) parts.push(`And no ${list(plan.nopeMovie.map((g) => (NOPE_GENRES.find(([id]) => id === g) || [0, ""])[1].toLowerCase()))}, as promised.`);
+    if (plan.fame === "gem") parts.push("A proper hidden gem, too.");
+    if (plan.relaxed >= 2) parts.push("(We bent your answers a little to find something that's actually streaming.)");
     return parts.join(" ");
   }
 
   async function showBuddyPick() {
     const remaining = buddy.pool.filter((m) => !buddy.shown.has(m.id));
     if (!remaining.length) {
-      el.buddyBody.innerHTML = `<div class="pass"><div class="big">🤷</div><h2>We're out of ideas</h2>
-        <p class="hint">Nothing streaming matched your combined answers${state.services.size ? " on your services. Try clearing “My services”" : ""}.</p>
+      el.buddyBody.innerHTML = `<div class="pass"><div class="big">Well.</div><h2>That's everything we had.</h2>
+        <p class="hint">Nothing else streaming fits both of you${state.services.size ? " on your services. Try it again with “any service”" : ""}.</p>
         <button class="primary" type="button" data-buddy="restart">Start over</button></div>`;
       return;
     }
@@ -859,33 +862,48 @@
     buddy.shown.add(pick.id);
     buddy.current = pick;
     remember(pick);
-    el.buddyBody.innerHTML = `<div class="buddy-step"><div class="spinner"></div></div>`;
+    el.buddyBody.innerHTML = `<div class="pass"><div class="spinner"></div></div>`;
     const s = await streamingFor(pick.kind, pick.id).catch(() => ({ list: [] }));
-    const emoji = KINDS[pick.kind].emoji;
     el.buddyBody.innerHTML = `<div class="buddy-step">
-      <div class="who">🎉 Tonight's pick</div>
-      <div class="pick">
-        ${pick.poster_path ? `<img src="${IMG}w342${pick.poster_path}" alt="">` : `<div class="poster"><div class="noimg">${emoji}</div></div>`}
-        <div>
-          <h2>${esc(pick.title)} <span class="card-year">${year(pick.date)}</span></h2>
-          <div class="match"><span>${esc(pname(0))}: ${pick._a}% match</span><span>${esc(pname(1))}: ${pick._b}% match</span></div>
-          <p class="why">${esc(whyText(buddy.plan))}</p>
-          <p>${esc((pick.overview || "").slice(0, 260))}${(pick.overview || "").length > 260 ? "…" : ""}</p>
-          ${s.list.length ? `<div class="logos">${logosHTML(s.list)}</div>` : ""}
-          <div class="actions">
-            <button class="primary" type="button" data-details="${pick.id}" data-kind="${pick.kind}">Where to watch</button>
-            ${saveBtn(pick)}
-            <button class="secondary" type="button" data-buddy="share">🔗 Share</button>
-            <button class="secondary" type="button" data-buddy="shuffle">🎲 Not feeling it</button>
-            <button class="link-btn" type="button" data-buddy="restart">Start over</button>
-          </div>
-        </div>
+      <div class="who">Tonight's feature</div>
+      ${ticketHTML(pick, {
+        chips: [[pname(0), pick._a], [pname(1), pick._b]],
+        why: whyText(buddy.plan),
+        streaming: s,
+        actions: `
+          <button class="primary" type="button" data-details="${pick.id}" data-kind="${pick.kind}">Where to watch</button>
+          <button class="secondary" type="button" data-buddy="share">Share this pick</button>
+          ${saveBtn(pick)}`,
+      })}
+      <div class="step-nav">
+        <button class="link-btn" type="button" data-buddy="restart">Start over</button>
+        <button class="secondary" type="button" data-buddy="shuffle">Not feeling it. Next</button>
       </div>
-      ${alts.length ? `<h3 class="why" style="margin-top:24px">Also a good match</h3><div class="alts">${alts.map((m) => `
+      ${alts.length ? `<h3 class="alts-title">Also worth a look</h3><div class="alts">${alts.map((m) => `
         <button type="button" class="card" data-details="${m.id}" data-kind="${m.kind}">
-          <div class="poster">${m.poster_path ? `<img src="${IMG}w185${m.poster_path}" alt="" loading="lazy">` : `<div class="noimg">${emoji}</div>`}</div>
+          <div class="poster">${m.poster_path ? `<img src="${IMG}w185${m.poster_path}" alt="" loading="lazy">` : `<div class="noimg">${esc(m.title)}</div>`}</div>
           <div class="card-body"><div class="card-title">${esc(m.title)}</div><div class="card-year">${Math.round((m._a + m._b) / 2)}% match</div></div>
         </button>`).join("")}</div>` : ""}
+    </div>`;
+  }
+
+  // The pick, printed as a cinema ticket. Used for fresh picks and shared links.
+  function ticketHTML(m, { chips, why, streaming, actions }) {
+    const stamps = chips.filter(([, v]) => v !== null && v !== undefined).map(([n, v]) => `<span>${esc(n)} · ${v}%</span>`).join("");
+    const overview = m.overview || "";
+    return `<div class="ticket">
+      <div class="ticket-main">
+        ${m.poster_path ? `<img src="${IMG}w342${m.poster_path}" alt="">` : `<div class="poster"><div class="noimg">${esc(m.title)}</div></div>`}
+        <div>
+          <h2>${esc(m.title)}<span class="card-year">${year(m.date)}</span></h2>
+          ${stamps ? `<div class="match">${stamps}</div>` : ""}
+          ${why ? `<p class="why">${esc(why)}</p>` : ""}
+          <p class="overview">${esc(overview.slice(0, 240))}${overview.length > 240 ? "…" : ""}</p>
+          ${streaming.list.length ? `<div class="logos">${logosHTML(streaming.list)}</div>` : `<p class="none-here">Not streaming in ${esc(regionName())} right now.</p>`}
+          <div class="actions">${actions}</div>
+        </div>
+      </div>
+      <div class="ticket-stub" aria-hidden="true"><span>ADMIT TWO</span><span class="no">No. ${String(m.id % 10000).padStart(4, "0")}</span></div>
     </div>`;
   }
 
@@ -902,15 +920,15 @@
     const p = buddy.current;
     if (!p) return;
     const url = shareUrl(p);
-    const text = `${pname(0)} & ${pname(1)} are watching ${p.title} tonight 🍿`;
+    const text = `${pname(0)} & ${pname(1)} are watching ${p.title} tonight.`;
     if (navigator.share) {
       try { await navigator.share({ title: p.title, text, url }); return; }
       catch (e) { if (e.name === "AbortError") return; /* otherwise fall back to copying */ }
     }
     try {
       await navigator.clipboard.writeText(url);
-      btn.textContent = "✓ Link copied";
-      setTimeout(() => { btn.textContent = "🔗 Share"; }, 2500);
+      btn.textContent = "Link copied ✓";
+      setTimeout(() => { btn.textContent = "Share this pick"; }, 2500);
     } catch {
       // Clipboard blocked: show the link so it can be copied by hand.
       if (!el.buddyBody.querySelector(".share-url")) {
@@ -931,7 +949,7 @@
   }
 
   async function showSharedPick(sp) {
-    el.buddyBody.innerHTML = `<div class="buddy-step"><div class="spinner"></div></div>`;
+    el.buddyBody.innerHTML = `<div class="pass"><div class="spinner"></div></div>`;
     el.buddy.showModal();
     try {
       const raw = await cached(`/${sp.kind}/${sp.id}`, { append_to_response: "watch/providers,videos" });
@@ -939,29 +957,21 @@
       m.genre_ids = (m.genres || []).map((g) => g.id);
       remember(m);
       const s = pickStreaming(m["watch/providers"]);
-      const who = sp.a && sp.b ? `${sp.a} & ${sp.b}'s pick` : "A Buddy Mode pick";
-      const chips = [[sp.a || "Player 1", sp.ma], [sp.b || "Player 2", sp.mb]].filter(([, v]) => v !== null)
-        .map(([n, v]) => `<span>${esc(n)}: ${v}% match</span>`).join("");
+      const who = sp.a && sp.b ? `${sp.a} & ${sp.b} are watching` : "Someone's Buddy Mode pick";
       el.buddyBody.innerHTML = `<div class="buddy-step">
-        <div class="who">🎟️ ${esc(who)}</div>
-        <div class="pick">
-          ${m.poster_path ? `<img src="${IMG}w342${m.poster_path}" alt="">` : `<div class="poster"><div class="noimg">${KINDS[m.kind].emoji}</div></div>`}
-          <div>
-            <h2>${esc(m.title)} <span class="card-year">${year(m.date)}</span></h2>
-            ${chips ? `<div class="match">${chips}</div>` : ""}
-            ${sp.why ? `<p class="why">${esc(sp.why)}</p>` : ""}
-            <p>${esc((m.overview || "").slice(0, 260))}${(m.overview || "").length > 260 ? "…" : ""}</p>
-            ${s.list.length ? `<div class="logos">${logosHTML(s.list)}</div>` : `<p class="why">Not streaming in ${esc(regionName())} right now.</p>`}
-            <div class="actions">
-              <button class="primary" type="button" data-details="${m.id}" data-kind="${m.kind}">Where to watch</button>
-              ${saveBtn(m)}
-              <button class="secondary" type="button" data-buddy="restart">👯 Try Buddy Mode</button>
-            </div>
-          </div>
-        </div>
+        <div class="who">${esc(who)}</div>
+        ${ticketHTML(m, {
+          chips: [[sp.a || "Player 1", sp.ma], [sp.b || "Player 2", sp.mb]],
+          why: sp.why,
+          streaming: s,
+          actions: `
+            <button class="primary" type="button" data-details="${m.id}" data-kind="${m.kind}">Where to watch</button>
+            ${saveBtn(m)}
+            <button class="secondary" type="button" data-buddy="restart">Try Buddy Mode yourselves</button>`,
+        })}
       </div>`;
     } catch (e) {
-      el.buddyBody.innerHTML = `<div class="pass"><h2>Couldn't load this pick</h2><p class="hint">The link may be broken. Try Buddy Mode yourselves!</p><button class="primary" type="button" data-buddy="restart">👯 Start Buddy Mode</button></div>`;
+      el.buddyBody.innerHTML = `<div class="pass"><h2>That ticket's smudged.</h2><p class="hint">We couldn't read this link. Why not run Buddy Mode yourselves?</p><button class="primary" type="button" data-buddy="restart">Start Buddy Mode</button></div>`;
     }
   }
 
@@ -981,7 +991,7 @@
     run();
   }
 
-  // ♡ buttons live on cards, in details and in Buddy Mode.
+  // Bookmark buttons live on cards, in details and in Buddy Mode.
   document.addEventListener("click", (ev) => { const b = ev.target.closest("[data-save]"); if (b) toggleSaved(b.dataset.save); });
   el.listOpen.addEventListener("click", () => (state.view === "list" ? run() : showList()));
 

@@ -1,17 +1,21 @@
-# 🍿 StreamScout
+# StreamScout
 
 A free, simple movie and TV finder: search every streaming service at once and see where a movie or show is streaming **right now** in your country.
 
 - **Movies or TV Shows**: flip the switch at the top; search, moods, filters and Buddy Mode all follow it. Search a show while on Movies and it offers to switch.
 - **Search**: results update as you type, and only titles you can stream now show up (subscription, free, or free with ads).
 - **Browse**: filter by mood (😂 Make me laugh, 😱 Scare me, 🧠 Mind-bending…), genre, and sort order.
-- **My list**: tap ♡ on any movie or show to save it for later. "My list" shows everything you saved, with where each one is streaming right now. Saved in your browser, no account needed.
+- **Your list**: tap the bookmark on any poster to save it for later. "Your list" shows everything you saved, with where each one is streaming right now. Saved in your browser, no account needed.
 - **My services**: tap the services you pay for to see only what's on them (remembered in your browser).
 - **Buddy Mode**: you and a friend each answer 6 quick questions, and StreamScout picks a movie or show you'll both like, with a match score for each of you.
-  Tap **🔗 Share** to send the pick as a link; it opens with your match scores and where to stream it in their country.
+  Tap **Share this pick** to send the pick as a link; it opens with your match scores and where to stream it in their country.
 - Works in any country. Pick yours in the top-right.
 
 Movie data comes from [TMDB](https://www.themoviedb.org/), and streaming availability from [JustWatch](https://www.justwatch.com/) (via TMDB).
+
+## Look and feel
+
+Designed like a neighborhood video shop or a printed cinema program: warm paper, ink-black type (Fraunces for headlines, Instrument Sans for text, DM Mono for labels), one marquee red, and a few hand-drawn marks. Buddy Mode picks come out as an "admit two" ticket. A darker "lights down" version follows your device's dark mode.
 
 ## How it's built
 
