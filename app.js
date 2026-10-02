@@ -8,6 +8,9 @@
   const STREAM_TYPES = ["flatrate", "free", "ads"];
   const TYPE_LABEL = { flatrate: "Subscription", free: "Free", ads: "Free with ads" };
   const TOP_SERVICES = 14;
+  // Rent/buy stores and add-on channel duplicates (e.g. "HBO Max Amazon Channel")
+  // clutter the service picker; the main service is listed on its own.
+  const HIDDEN_SERVICE = /(Channel|Store|with Ads)$|^Amazon Video$|Google Play|Fandango|Microsoft Store/i;
   const CURRENT_YEAR = new Date().getFullYear();
   const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -172,6 +175,7 @@
     el.region.innerHTML = rs.map((r) => `<option value="${r.iso_3166_1}" ${r.iso_3166_1 === state.region ? "selected" : ""}>${esc(r.english_name)}</option>`).join("");
 
     state.providers = (providers.results || [])
+      .filter((p) => !HIDDEN_SERVICE.test(p.provider_name))
       .map((p) => ({ ...p, prio: (p.display_priorities && p.display_priorities[state.region]) ?? p.display_priority }))
       .sort((a, b) => a.prio - b.prio);
     // Drop saved services that don't exist in this region.
