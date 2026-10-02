@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>StreamScout — find where it's streaming</title>
-  <meta name="description" content="Search every streaming service at once and find a movie you can watch right now.">
+  <meta name="description" content="Search every streaming service at once and find a movie or TV show you can watch right now.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍿</text></svg>">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -22,7 +22,11 @@
   <main>
     <section class="hero">
       <h1>What do you want to watch?</h1>
-      <p class="tagline">Search every streaming service at once. Only shows movies you can stream <em>right now</em>.</p>
+      <p class="tagline">Search every streaming service at once. Only shows movies and TV you can stream <em>right now</em>.</p>
+      <div id="kind" class="segmented" role="group" aria-label="Movies or TV shows">
+        <button type="button" data-kind="movie" aria-pressed="true">🎬 Movies</button>
+        <button type="button" data-kind="tv" aria-pressed="false">📺 TV Shows</button>
+      </div>
       <form id="search-form" class="search" role="search">
         <input id="q" type="search" placeholder="Search a movie title…" autocomplete="off" aria-label="Search movies">
         <button type="submit">Search</button>

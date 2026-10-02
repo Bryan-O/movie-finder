@@ -3,7 +3,7 @@
 // environment variables. Only the read-only endpoints the site uses are allowed,
 // so this can't be used as an open proxy to the rest of TMDB.
 
-const ALLOWED = /^\/(search\/movie|discover\/movie|genre\/movie\/list|watch\/providers\/(regions|movie)|movie\/\d+(\/watch\/providers)?)$/;
+const ALLOWED = /^\/(search\/(movie|tv|keyword)|discover\/(movie|tv)|genre\/(movie|tv)\/list|watch\/providers\/(regions|movie|tv)|(movie|tv)\/\d+(\/watch\/providers)?)$/;
 
 module.exports = async (req, res) => {
   const key = (process.env.TMDB_API_KEY || "").trim();

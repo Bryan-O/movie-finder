@@ -14,6 +14,9 @@
   const CURRENT_YEAR = new Date().getFullYear();
   const TODAY = new Date().toISOString().slice(0, 10);
 
+  const KINDS = { movie: { one: "movie", many: "movies", emoji: "🎬" }, tv: { one: "show", many: "TV shows", emoji: "📺" } };
+
+  // Moods are written in TMDB movie genre ids; TV equivalents are derived below.
   const MOODS = [
     { id: "laugh", emoji: "😂", label: "Make me laugh", genres: [35], without: [27, 53] },
     { id: "cozy", emoji: "🛋️", label: "Cozy & comforting", genres: [10751, 16, 35], without: [27, 53, 80, 10752] },
@@ -29,10 +32,24 @@
   ];
   const MOOD = Object.fromEntries(MOODS.map((m) => [m.id, m]));
 
+  // TMDB's TV genres differ from movie genres. Map each movie genre to its TV
+  // counterpart(s); horror and romance have no TV genre, so use keywords instead.
+  const MOVIE_TO_TV = {
+    28: [10759], 12: [10759], 16: [16], 35: [35], 80: [80], 99: [99], 18: [18], 10751: [10751, 10762],
+    14: [10765], 36: [99], 27: [], 10402: [], 9648: [9648], 10749: [], 878: [10765], 53: [9648, 80],
+    10752: [10768], 37: [37],
+  };
+  // Looser mappings shouldn't be used to *exclude* shows (e.g. "no thrillers" mustn't drop every crime show).
+  const LOOSE_FOR_EXCLUDE = new Set([53, 36]);
+  const GENRE_KEYWORD = { 27: "horror", 10749: "romance" };
+  // News and talk shows clutter TV browsing.
+  const TV_ALWAYS_WITHOUT = [10763, 10767];
+
   // ---------- Small helpers ----------
   const $ = (sel, root = document) => root.querySelector(sel);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const year = (d) => (d ? d.slice(0, 4) : "");
+  const uniq = (a) => [...new Set(a)];
   const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
   const store = {
@@ -50,6 +67,9 @@
     await Promise.all(workers);
     return out;
   }
+
+  // Movies and shows use different field names; give them one shape.
+  const norm = (m, kind) => ({ ...m, kind, title: m.title || m.name || "", date: m.release_date || m.first_air_date || "" });
 
   // ---------- TMDB API ----------
   const PROXY = (window.STREAMSCOUT_CONFIG || {}).proxy || "";
@@ -101,9 +121,9 @@
     return cache.get(k);
   }
 
-  // Streaming options for a movie in the current region, best-known services first.
-  async function streamingFor(id) {
-    const data = await cached(`/movie/${id}/watch/providers`);
+  // Streaming options for a title in the current region, best-known services first.
+  async function streamingFor(kind, id) {
+    const data = await cached(`/${kind}/${id}/watch/providers`);
     return pickStreaming(data);
   }
   function pickStreaming(data) {
@@ -119,17 +139,36 @@
     return { list, link: r.link };
   }
 
+  async function keywordId(name) {
+    const data = await cached("/search/keyword", { query: name });
+    const hit = (data.results || []).find((k) => k.name.toLowerCase() === name) || (data.results || [])[0];
+    return hit ? hit.id : null;
+  }
+
+  // Translate movie genre ids into discover filters for the given kind.
+  function genresFor(kind, ids, forExclude = false) {
+    if (kind === "movie") return { genres: ids.slice(), keywords: [] };
+    const genres = [], keywords = [];
+    for (const g of ids) {
+      if (GENRE_KEYWORD[g]) keywords.push(GENRE_KEYWORD[g]);
+      else if (!(forExclude && LOOSE_FOR_EXCLUDE.has(g))) genres.push(...(MOVIE_TO_TV[g] || []));
+    }
+    return { genres: uniq(genres), keywords: uniq(keywords) };
+  }
+  const keywordIds = async (names) => (await Promise.all(names.map((n) => keywordId(n).catch(() => null)))).filter(Boolean);
+
   // ---------- State ----------
   const state = {
     region: store.get("region", (navigator.language.split("-")[1] || "US").toUpperCase()),
     services: new Set(store.get("services", [])),
+    kind: store.get("kind", "movie") === "tv" ? "tv" : "movie",
     mood: null,
     genre: "",
     sort: "popularity.desc",
     query: "",
     page: 0,
     totalPages: 0,
-    genres: [],
+    genres: { movie: [], tv: [] },
     providers: [],
     showAllServices: false,
     req: 0,
@@ -137,7 +176,7 @@
 
   // ---------- Elements ----------
   const el = {
-    region: $("#region"), moods: $("#moods"), services: $("#services"), genre: $("#genre"), sort: $("#sort"),
+    region: $("#region"), kind: $("#kind"), moods: $("#moods"), services: $("#services"), genre: $("#genre"), sort: $("#sort"),
     q: $("#q"), searchForm: $("#search-form"), reset: $("#reset"), grid: $("#grid"), status: $("#status"),
     more: $("#more"), setup: $("#setup"), keyForm: $("#key-form"), keyInput: $("#key-input"), keyError: $("#key-error"),
     forgetKey: $("#forget-key"), details: $("#details"), detailsBody: $("#details-body"),
@@ -145,10 +184,21 @@
   };
 
   // ---------- Rendering: filters ----------
+  function renderKind() {
+    el.kind.querySelectorAll("[data-kind]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.kind === state.kind));
+    el.q.placeholder = state.kind === "tv" ? "Search a TV show…" : "Search a movie title…";
+  }
+
   function renderMoods() {
     el.moods.innerHTML = MOODS.map((m) =>
       `<button type="button" class="chip" data-mood="${m.id}" aria-pressed="${state.mood === m.id}">${m.emoji} ${esc(m.label)}</button>`
     ).join("");
+  }
+
+  function renderGenres() {
+    el.genre.innerHTML = `<option value="">Any genre</option>` +
+      state.genres[state.kind].map((g) => `<option value="${g.id}">${esc(g.name)}</option>`).join("");
+    el.genre.value = state.genre;
   }
 
   function renderServices() {
@@ -165,42 +215,48 @@
   }
 
   async function loadRegionData() {
-    const [regions, providers, genres] = await Promise.all([
+    const [regions, movieProv, tvProv, movieGenres, tvGenres] = await Promise.all([
       cached("/watch/providers/regions"),
       cached("/watch/providers/movie", { watch_region: state.region }),
+      cached("/watch/providers/tv", { watch_region: state.region }),
       cached("/genre/movie/list"),
+      cached("/genre/tv/list"),
     ]);
     const rs = (regions.results || []).sort((a, b) => a.english_name.localeCompare(b.english_name));
     if (!rs.some((r) => r.iso_3166_1 === state.region)) state.region = "US";
     el.region.innerHTML = rs.map((r) => `<option value="${r.iso_3166_1}" ${r.iso_3166_1 === state.region ? "selected" : ""}>${esc(r.english_name)}</option>`).join("");
 
-    state.providers = (providers.results || [])
-      .filter((p) => !HIDDEN_SERVICE.test(p.provider_name))
-      .map((p) => ({ ...p, prio: (p.display_priorities && p.display_priorities[state.region]) ?? p.display_priority }))
-      .sort((a, b) => a.prio - b.prio);
+    // One service list covering both movies and shows.
+    const byId = new Map();
+    for (const p of [...(movieProv.results || []), ...(tvProv.results || [])]) {
+      if (HIDDEN_SERVICE.test(p.provider_name)) continue;
+      const prio = (p.display_priorities && p.display_priorities[state.region]) ?? p.display_priority;
+      const prev = byId.get(p.provider_id);
+      if (!prev || prio < prev.prio) byId.set(p.provider_id, { ...p, prio });
+    }
+    state.providers = [...byId.values()].sort((a, b) => a.prio - b.prio);
     // Drop saved services that don't exist in this region.
-    const ids = new Set(state.providers.map((p) => p.provider_id));
-    state.services = new Set([...state.services].filter((id) => ids.has(id)));
+    state.services = new Set([...state.services].filter((id) => byId.has(id)));
     renderServices();
 
-    state.genres = genres.genres || [];
-    el.genre.innerHTML = `<option value="">Any genre</option>` +
-      state.genres.map((g) => `<option value="${g.id}">${esc(g.name)}</option>`).join("");
-    el.genre.value = state.genre;
+    state.genres = { movie: movieGenres.genres || [], tv: tvGenres.genres || [] };
+    renderGenres();
   }
 
   // ---------- Rendering: results ----------
+  const keyOf = (m) => `${m.kind}-${m.id}`;
+
   function cardHTML(m) {
     const poster = m.poster_path
       ? `<img src="${IMG}w342${m.poster_path}" alt="" loading="lazy">`
-      : `<div class="noimg">🎬</div>`;
+      : `<div class="noimg">${KINDS[m.kind].emoji}</div>`;
     const rating = m.vote_count > 10 ? `<span class="rating">★ ${m.vote_average.toFixed(1)}</span>` : "";
-    return `<button type="button" class="card" data-id="${m.id}">
+    return `<button type="button" class="card" data-id="${m.id}" data-kind="${m.kind}">
       <div class="poster">${poster}${rating}</div>
       <div class="card-body">
         <div class="card-title">${esc(m.title)}</div>
-        <div class="card-year">${year(m.release_date)}</div>
-        <div class="logos" data-logos="${m.id}"><span class="skeleton" style="width:60px;height:24px;border-radius:6px"></span></div>
+        <div class="card-year">${year(m.date)}</div>
+        <div class="logos" data-logos="${keyOf(m)}"><span class="skeleton" style="width:60px;height:24px;border-radius:6px"></span></div>
       </div>
     </button>`;
   }
@@ -214,9 +270,9 @@
   function appendCards(items) {
     el.grid.insertAdjacentHTML("beforeend", items.map(({ m }) => cardHTML(m)).join(""));
     for (const { m, s } of items) {
-      const fill = (st) => { const slot = el.grid.querySelector(`[data-logos="${m.id}"]`); if (slot) slot.innerHTML = logosHTML(st.list); };
+      const fill = (st) => { const slot = el.grid.querySelector(`[data-logos="${keyOf(m)}"]`); if (slot) slot.innerHTML = logosHTML(st.list); };
       if (s) fill(s);
-      else streamingFor(m.id).then(fill).catch(() => fill({ list: [] }));
+      else streamingFor(m.kind, m.id).then(fill).catch(() => fill({ list: [] }));
     }
   }
 
@@ -231,13 +287,18 @@
   function moodFilter(m) {
     const mood = state.mood && MOOD[state.mood];
     if (!mood) return true;
-    if (mood.genres.length && !m.genre_ids.some((g) => mood.genres.includes(g))) return false;
-    if ((mood.without || []).some((g) => m.genre_ids.includes(g))) return false;
+    const want = genresFor(m.kind, mood.genres).genres;
+    const avoid = genresFor(m.kind, mood.without || [], true).genres;
+    // Keyword-only moods (e.g. horror shows) can't be checked from search results.
+    if (want.length && !m.genre_ids.some((g) => want.includes(g))) return false;
+    if (avoid.some((g) => m.genre_ids.includes(g))) return false;
     return true;
   }
 
-  function discoverParams(page) {
+  async function discoverParams(page) {
+    const kind = state.kind;
     const mood = state.mood && MOOD[state.mood];
+    const tv = kind === "tv";
     const p = {
       watch_region: state.region,
       with_watch_monetization_types: STREAM_TYPES.join("|"),
@@ -245,14 +306,25 @@
       include_adult: false,
       page,
       sort_by: state.sort === "random" ? "popularity.desc" : state.sort,
-      "vote_count.gte": state.sort === "vote_average.desc" ? 300 : state.sort === "primary_release_date.desc" ? 10 : 50,
+      "vote_count.gte": state.sort === "vote_average.desc" ? (tv ? 150 : 300) : state.sort === "primary_release_date.desc" ? 10 : (tv ? 20 : 50),
     };
-    if (state.sort === "primary_release_date.desc") p["primary_release_date.lte"] = TODAY;
+    if (state.sort === "primary_release_date.desc") {
+      if (tv) { p.sort_by = "first_air_date.desc"; p["first_air_date.lte"] = TODAY; }
+      else p["primary_release_date.lte"] = TODAY;
+    }
+    const want = mood ? genresFor(kind, mood.genres) : { genres: [], keywords: [] };
+    const avoid = mood ? genresFor(kind, mood.without || [], true) : { genres: [], keywords: [] };
     // A specific genre wins over a mood's genre set (moods are a quick preset).
     if (state.genre) p.with_genres = state.genre;
-    else if (mood && mood.genres.length) p.with_genres = mood.genres.join("|");
-    if (mood && mood.without) p.without_genres = mood.without.filter((g) => String(g) !== state.genre).join(",");
-    if (mood && mood.extra) Object.assign(p, mood.extra);
+    else if (want.genres.length) p.with_genres = want.genres.join("|");
+    else if (want.keywords.length) p.with_keywords = (await keywordIds(want.keywords)).join("|");
+    const without = uniq([...avoid.genres, ...(tv ? TV_ALWAYS_WITHOUT : [])]).filter((g) => String(g) !== state.genre);
+    if (without.length) p.without_genres = without.join(",");
+    if (avoid.keywords.length) p.without_keywords = (await keywordIds(avoid.keywords)).join(",");
+    if (mood && mood.extra) {
+      Object.assign(p, mood.extra);
+      if (tv && p["vote_count.gte"] > 300) p["vote_count.gte"] = Math.round(p["vote_count.gte"] / 3);
+    }
     return p;
   }
 
@@ -263,12 +335,13 @@
       state.page = 0; state.totalPages = 0; el.grid.innerHTML = "";
       if (state.sort === "random" && !state.query) state.page = Math.floor(Math.random() * 6);
     }
+    const K = KINDS[state.kind];
     el.more.hidden = true;
-    el.status.textContent = state.query ? `Checking where "${state.query}" is streaming…` : "Finding movies you can stream right now…";
+    el.status.textContent = state.query ? `Checking where "${state.query}" is streaming…` : `Finding ${K.many} you can stream right now…`;
     skeletons(reset ? 12 : 6);
     try {
       let items;
-      if (state.query) items = await searchPage(req);
+      if (state.query) items = await searchPage(req, state.kind);
       else items = await discoverPage(req);
       if (req !== state.req) return;
       clearSkeletons();
@@ -278,12 +351,13 @@
       const onMine = state.services.size ? " on your services" : "";
       if (!count) {
         el.status.textContent = state.query
-          ? `No streaming results for "${state.query}" ${state.services.size ? "on your services " : ""}in ${regionName()}. It might only be in theaters or for rent right now.`
+          ? `No streaming ${K.many} found for "${state.query}"${onMine} in ${regionName()}. It might only be in theaters or for rent right now.`
           : "Nothing matches those filters. Try another mood or fewer filters.";
+        if (state.query && reset) suggestOtherKind(req);
       } else {
         el.status.textContent = state.query
-          ? `${count} result${count === 1 ? "" : "s"} for "${state.query}" streaming now${onMine} in ${regionName()}`
-          : `Streaming now${onMine} in ${regionName()}`;
+          ? `${count} ${count === 1 ? K.one : K.many} for "${state.query}" streaming now${onMine} in ${regionName()}`
+          : `${K.many[0].toUpperCase() + K.many.slice(1)} streaming now${onMine} in ${regionName()}`;
       }
       el.more.hidden = state.page >= state.totalPages;
     } catch (e) {
@@ -293,35 +367,50 @@
     }
   }
 
+  // Searched "Breaking Bad" while on Movies? Offer to switch.
+  async function suggestOtherKind(req) {
+    const other = state.kind === "movie" ? "tv" : "movie";
+    try {
+      const data = await tmdb(`/search/${other}`, { query: state.query, page: 1, include_adult: false });
+      const top = data.results.slice(0, 8).map((m) => norm(m, other));
+      const checked = await mapLimit(top, 8, async (m) => (await streamingFor(other, m.id).catch(() => ({ list: [] }))).list.length);
+      const n = checked.filter(Boolean).length;
+      if (req !== state.req || !n) return;
+      el.status.innerHTML = `${esc(el.status.textContent)} <button type="button" class="link-btn" data-switch-kind="${other}">But ${n} ${n === 1 ? KINDS[other].one : KINDS[other].many} match. Show ${KINDS[other].many} →</button>`;
+    } catch { /* suggestion is best-effort */ }
+  }
+
   async function discoverPage(req) {
     let page = state.page + 1;
-    let data = await tmdb("/discover/movie", discoverParams(page));
+    const path = `/discover/${state.kind}`;
+    let data = await tmdb(path, await discoverParams(page));
     // "Surprise me" picks a random starting page; fall back if it overshoots.
     if (!data.results.length && page > 1 && data.total_pages > 0 && reqFresh(req) && state.sort === "random") {
       page = 1 + Math.floor(Math.random() * Math.min(data.total_pages, 5));
-      data = await tmdb("/discover/movie", discoverParams(page));
+      data = await tmdb(path, await discoverParams(page));
     }
     state.page = page;
     state.totalPages = Math.min(data.total_pages || 0, 500);
-    return data.results.map((m) => ({ m }));
+    return data.results.map((m) => ({ m: norm(m, state.kind) }));
   }
   const reqFresh = (req) => req === state.req;
 
   // Search results aren't filtered by availability on TMDB's side, so check each
-  // movie's providers and keep only what's streaming now. Keep fetching pages
+  // title's providers and keep only what's streaming now. Keep fetching pages
   // until there's a decent handful (or we've looked far enough).
-  async function searchPage(req) {
+  async function searchPage(req, kind) {
     const hits = [];
     let looked = 0;
     while (hits.length < 8 && looked < 3 && (state.page === 0 || state.page < state.totalPages)) {
       const page = state.page + 1;
-      const data = await tmdb("/search/movie", { query: state.query, page, include_adult: false });
+      const data = await tmdb(`/search/${kind}`, { query: state.query, page, include_adult: false });
       if (!reqFresh(req)) return [];
       state.page = page;
       state.totalPages = data.total_pages || 0;
       looked++;
-      const candidates = data.results.filter((m) => (!state.genre || m.genre_ids.includes(+state.genre)) && moodFilter(m));
-      const checked = await mapLimit(candidates, 8, async (m) => ({ m, s: await streamingFor(m.id).catch(() => ({ list: [] })) }));
+      const candidates = data.results.map((m) => norm(m, kind))
+        .filter((m) => (!state.genre || m.genre_ids.includes(+state.genre)) && moodFilter(m));
+      const checked = await mapLimit(candidates, 8, async (m) => ({ m, s: await streamingFor(kind, m.id).catch(() => ({ list: [] })) }));
       for (const x of checked) {
         const ok = x.s.list.length && (!state.services.size || x.s.list.some((p) => state.services.has(p.provider_id)));
         if (ok) hits.push(x);
@@ -365,21 +454,34 @@
   el.forgetKey.addEventListener("click", () => { store.del("key"); cache.clear(); el.forgetKey.hidden = true; showSetup(); });
 
   // ---------- Details modal ----------
-  async function openDetails(id) {
+  function hm(mins) { return mins ? (mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`) : ""; }
+
+  async function openDetails(kind, id) {
     el.detailsBody.innerHTML = `<div class="spinner"></div>`;
     if (!el.details.open) el.details.showModal();
     try {
-      const m = await cached(`/movie/${id}`, { append_to_response: "watch/providers,videos" });
+      const raw = await cached(`/${kind}/${id}`, { append_to_response: "watch/providers,videos" });
+      const m = norm(raw, kind);
       const s = pickStreaming(m["watch/providers"]);
       const trailer = ((m.videos && m.videos.results) || []).find((v) => v.site === "YouTube" && v.type === "Trailer");
-      const runtime = m.runtime ? `${Math.floor(m.runtime / 60)}h ${m.runtime % 60}m` : "";
+      let facts;
+      if (kind === "tv") {
+        const ended = m.status === "Ended" || m.status === "Canceled";
+        const span = year(m.first_air_date) + (ended && m.last_air_date && year(m.last_air_date) !== year(m.first_air_date) ? `–${year(m.last_air_date)}` : ended ? "" : "–");
+        const seasons = m.number_of_seasons ? `${m.number_of_seasons} season${m.number_of_seasons === 1 ? "" : "s"}` : "";
+        const ep = (m.episode_run_time || [])[0] ? `${hm(m.episode_run_time[0])} episodes` : "";
+        facts = ["TV series", span, seasons, ep];
+      } else {
+        facts = [year(m.date), hm(m.runtime)];
+      }
+      facts.push(m.vote_count > 10 ? `★ ${m.vote_average.toFixed(1)}` : "", (m.genres || []).map((g) => g.name).join(", "));
       el.detailsBody.innerHTML = `
         <div class="backdrop" style="${m.backdrop_path ? `background-image:url('${IMG}w1280${m.backdrop_path}')` : ""}"></div>
         <div class="detail">
           ${m.poster_path ? `<img class="dposter" src="${IMG}w342${m.poster_path}" alt="">` : "<div></div>"}
           <div>
             <h2>${esc(m.title)}</h2>
-            <div class="meta">${[year(m.release_date), runtime, m.vote_count > 10 ? `★ ${m.vote_average.toFixed(1)}` : "", (m.genres || []).map((g) => g.name).join(", ")].filter(Boolean).map(esc).join(" · ")}</div>
+            <div class="meta">${facts.filter(Boolean).map(esc).join(" · ")}</div>
             ${m.tagline ? `<p><em>${esc(m.tagline)}</em></p>` : ""}
             <p>${esc(m.overview || "No description available.")}</p>
             <div class="where">
@@ -396,7 +498,7 @@
           </div>
         </div>`;
     } catch (e) {
-      el.detailsBody.innerHTML = `<p class="buddy-step error">Couldn't load this movie. Please try again.</p>`;
+      el.detailsBody.innerHTML = `<p class="buddy-step error">Couldn't load this title. Please try again.</p>`;
     }
   }
 
@@ -407,7 +509,7 @@
       options: MOODS.filter((m) => m.id !== "acclaimed").map((m) => ({ value: m.id, label: `${m.emoji} ${m.label}` })) },
     { id: "brain", q: "How much brainpower is left in the tank?",
       options: [{ value: "low", label: "🫠 Running on fumes" }, { value: "mid", label: "🙂 A normal amount" }, { value: "high", label: "🤓 Bring on the plot twists" }] },
-    { id: "length", q: "How long can you commit?",
+    { id: "length", q: "How long can you commit?", movieOnly: true,
       options: [{ value: 100, label: "⏱️ Under 100 minutes" }, { value: 135, label: "🎬 A normal movie (up to ~2h15)" }, { value: 0, label: "🏔️ Epic? I'm in" }] },
     { id: "era", q: "Pick an era",
       options: [{ value: "classic", label: "📼 Classics (before 1990)" }, { value: "retro", label: "💿 90s & 2000s" }, { value: "modern", label: "📱 2010 and newer" }, { value: "any", label: "🤷 Don't care" }] },
@@ -418,11 +520,15 @@
   ];
   const ERAS = { classic: [1900, 1989], retro: [1990, 2009], modern: [2010, CURRENT_YEAR], any: [1900, CURRENT_YEAR] };
 
-  const buddy = { names: ["", ""], answers: [{}, {}], player: 0, q: 0, pool: [], shown: new Set(), plan: null };
+  const buddy = { names: ["", ""], kind: "movie", qs: BUDDY_QS, answers: [{}, {}], player: 0, q: 0, pool: [], shown: new Set(), plan: null };
+
+  function resetBuddy() {
+    Object.assign(buddy, { kind: state.kind, answers: [{}, {}], player: 0, q: 0, pool: [], shown: new Set(), plan: null });
+  }
 
   function openBuddy() {
     if (!apiKey()) { showSetup(); return; }
-    Object.assign(buddy, { answers: [{}, {}], player: 0, q: 0, pool: [], shown: new Set(), plan: null });
+    resetBuddy();
     renderBuddyNames();
     el.buddy.showModal();
   }
@@ -432,11 +538,15 @@
   function renderBuddyNames() {
     el.buddyBody.innerHTML = `<div class="buddy-step">
       <h2>👯 Buddy Mode</h2>
-      <p class="hint">Each of you answers 6 quick questions on this device. Then we'll find a movie you'll <em>both</em> like${state.services.size ? ", on your services" : ""}.</p>
+      <p class="hint">Each of you answers a few quick questions on this device. Then we'll find something you'll <em>both</em> like${state.services.size ? ", on your services" : ""}.</p>
       <form data-names>
         <div class="names">
           <input name="a" placeholder="Your name" value="${esc(buddy.names[0])}" maxlength="20" aria-label="Player 1 name">
           <input name="b" placeholder="Buddy's name" value="${esc(buddy.names[1])}" maxlength="20" aria-label="Player 2 name">
+        </div>
+        <p class="hint">What are we watching?</p>
+        <div class="segmented" data-buddy-kind>
+          ${Object.entries(KINDS).map(([k, K]) => `<button type="button" data-bkind="${k}" aria-pressed="${buddy.kind === k}">${K.emoji} A ${K.one}</button>`).join("")}
         </div>
         <div class="step-nav"><span></span><button class="primary" type="submit">Let's go →</button></div>
       </form>
@@ -453,14 +563,14 @@
   }
 
   function renderQuestion() {
-    const Q = BUDDY_QS[buddy.q];
+    const Q = buddy.qs[buddy.q];
     const ans = buddy.answers[buddy.player];
     const sel = Q.multi ? (ans[Q.id] || []) : [ans[Q.id]];
-    const total = BUDDY_QS.length * 2;
-    const done = buddy.player * BUDDY_QS.length + buddy.q;
+    const total = buddy.qs.length * 2;
+    const done = buddy.player * buddy.qs.length + buddy.q;
     el.buddyBody.innerHTML = `<div class="buddy-step">
       <div class="progress"><div style="width:${(done / total) * 100}%"></div></div>
-      <div class="who">${esc(pname(buddy.player))} · ${buddy.q + 1}/${BUDDY_QS.length}</div>
+      <div class="who">${esc(pname(buddy.player))} · ${buddy.q + 1}/${buddy.qs.length}</div>
       <h2>${esc(Q.q)}</h2>
       <p class="hint">${esc(Q.hint || "")}</p>
       <div class="options">${Q.options.map((o) => `<button type="button" class="option" data-opt="${esc(o.value)}" aria-pressed="${sel.includes(o.value)}">${esc(o.label)}</button>`).join("")}</div>
@@ -472,7 +582,7 @@
   }
 
   function chooseOption(raw) {
-    const Q = BUDDY_QS[buddy.q];
+    const Q = buddy.qs[buddy.q];
     const opt = Q.options.find((o) => String(o.value) === raw);
     if (!opt) return;
     const ans = buddy.answers[buddy.player];
@@ -488,40 +598,44 @@
   }
 
   function nextQuestion() {
-    if (buddy.q < BUDDY_QS.length - 1) { buddy.q++; renderQuestion(); return; }
+    if (buddy.q < buddy.qs.length - 1) { buddy.q++; renderQuestion(); return; }
     if (buddy.player === 0) { buddy.player = 1; buddy.q = 0; renderPass(); return; }
     findBuddyPick();
   }
 
   function prevQuestion() {
     if (buddy.q > 0) { buddy.q--; renderQuestion(); return; }
-    if (buddy.player === 1) { buddy.player = 0; buddy.q = BUDDY_QS.length - 1; renderQuestion(); return; }
+    if (buddy.player === 1) { buddy.player = 0; buddy.q = buddy.qs.length - 1; renderQuestion(); return; }
     renderBuddyNames();
   }
 
-  // Genre preference weights for one player.
-  function weights(a) {
+  // Genre preference weights for one player, in the genre ids of the chosen kind.
+  function weights(a, kind) {
     const w = {};
-    const add = (g, n) => { w[g] = (w[g] || 0) + n; };
-    for (const id of a.moods || []) for (const g of MOOD[id].genres) add(g, 3);
-    if (a.brain === "low") { [35, 16, 10751, 28, 12].forEach((g) => add(g, 1)); [99, 36, 10752, 18].forEach((g) => add(g, -2)); }
-    if (a.brain === "high") [9648, 878, 18, 53, 99].forEach((g) => add(g, 1));
-    for (const g of a.nope || []) w[g] = -10;
+    const add = (ids, n) => { for (const g of genresFor(kind, ids).genres) w[g] = (w[g] || 0) + n; };
+    for (const id of a.moods || []) add(MOOD[id].genres, 3);
+    if (a.brain === "low") { add([35, 16, 10751, 28, 12], 1); add([99, 36, 10752, 18], -2); }
+    if (a.brain === "high") add([9648, 878, 18, 53, 99], 1);
+    for (const g of genresFor(kind, a.nope || [], true).genres) w[g] = -10;
     return w;
   }
 
   function buddyPlan() {
+    const kind = buddy.kind;
     const [A, B] = buddy.answers;
-    const wA = weights(A), wB = weights(B);
-    const nope = [...new Set([...(A.nope || []), ...(B.nope || [])])];
-    const ok = (g) => !nope.includes(+g);
-    const all = [...new Set([...Object.keys(wA), ...Object.keys(wB)])].filter(ok);
+    const wA = weights(A, kind), wB = weights(B, kind);
+    const nopeMovie = uniq([...(A.nope || []), ...(B.nope || [])]);
+    const nope = genresFor(kind, nopeMovie, true);
+    const ok = (g) => !nope.genres.includes(+g);
+    const all = uniq([...Object.keys(wA), ...Object.keys(wB)]).filter(ok);
     const top = (w) => Object.keys(w).filter((g) => w[g] > 0 && ok(g)).sort((x, y) => w[y] - w[x]);
     // Genres both people lean toward, strongest first.
     const shared = all.filter((g) => (wA[g] || 0) > 0 && (wB[g] || 0) > 0).sort((x, y) => (wA[y] + wB[y]) - (wA[x] + wB[x]));
-    const union = [...new Set([...top(wA).slice(0, 2), ...top(wB).slice(0, 2)])];
+    const union = uniq([...top(wA).slice(0, 2), ...top(wB).slice(0, 2)]);
+    // Moods with no TV genre (horror, romance) fall back to keywords when that's all we have.
+    const moodKeywords = uniq([...(A.moods || []), ...(B.moods || [])].flatMap((id) => genresFor(kind, MOOD[id].genres).keywords));
 
-    const lens = [A.length, B.length].filter((n) => n > 0);
+    const lens = kind === "movie" ? [A.length, B.length].filter((n) => n > 0) : [];
     const runtime = lens.length ? Math.min(...lens) : 0;
 
     const [a0, a1] = ERAS[A.era || "any"], [b0, b1] = ERAS[B.era || "any"];
@@ -531,28 +645,36 @@
     const fames = [A.fame, B.fame];
     const fame = fames.includes("gem") && !fames.includes("crowd") ? "gem" : fames.includes("crowd") && !fames.includes("gem") ? "crowd" : "mixed";
 
-    return { wA, wB, nope, shared, union, runtime, era, fame };
+    return { kind, wA, wB, nopeMovie, nope, shared, union, moodKeywords, runtime, era, fame };
   }
 
-  function buddyParams(plan, relax) {
+  async function buddyParams(plan, relax) {
+    const tv = plan.kind === "tv";
     const p = {
       watch_region: state.region,
       with_watch_monetization_types: STREAM_TYPES.join("|"),
       with_watch_providers: [...state.services].join("|"),
       include_adult: false,
-      without_genres: plan.nope.join(","),
+      without_genres: uniq([...plan.nope.genres, ...(tv ? TV_ALWAYS_WITHOUT : [])]).join(","),
     };
+    if (plan.nope.keywords.length) p.without_keywords = (await keywordIds(plan.nope.keywords)).join(",");
     const genres = relax >= 3 ? [] : relax >= 2 || !plan.shared.length ? plan.union : plan.shared.slice(0, 3);
     if (genres.length) p.with_genres = genres.join("|");
-    if (plan.runtime && relax < 1) p["with_runtime.lte"] = plan.runtime;
-    p["with_runtime.gte"] = 60;
-    if (relax < 1) {
-      p["primary_release_date.gte"] = `${plan.era[0]}-01-01`;
-      p["primary_release_date.lte"] = plan.era[1] >= CURRENT_YEAR ? TODAY : `${plan.era[1]}-12-31`;
+    else if (relax < 3 && plan.moodKeywords.length) p.with_keywords = (await keywordIds(plan.moodKeywords)).join("|");
+    if (!tv) {
+      if (plan.runtime && relax < 1) p["with_runtime.lte"] = plan.runtime;
+      p["with_runtime.gte"] = 60;
     }
-    if (plan.fame === "crowd") Object.assign(p, { sort_by: "popularity.desc", "vote_count.gte": 500, "vote_average.gte": 6.3 });
-    else if (plan.fame === "gem") Object.assign(p, { sort_by: "vote_average.desc", "vote_count.gte": 80, "vote_count.lte": 2500, "vote_average.gte": 6.8 });
-    else Object.assign(p, { sort_by: "vote_average.desc", "vote_count.gte": 400, "vote_average.gte": 6.8 });
+    if (relax < 1) {
+      const dateKey = tv ? "first_air_date" : "primary_release_date";
+      p[`${dateKey}.gte`] = `${plan.era[0]}-01-01`;
+      p[`${dateKey}.lte`] = plan.era[1] >= CURRENT_YEAR ? TODAY : `${plan.era[1]}-12-31`;
+    }
+    // TV shows get far fewer votes than movies, so scale the thresholds down.
+    const v = (n) => (tv ? Math.round(n / 4) : n);
+    if (plan.fame === "crowd") Object.assign(p, { sort_by: "popularity.desc", "vote_count.gte": v(500), "vote_average.gte": 6.3 });
+    else if (plan.fame === "gem") Object.assign(p, { sort_by: "vote_average.desc", "vote_count.gte": v(80), "vote_count.lte": v(2500), "vote_average.gte": 6.8 });
+    else Object.assign(p, { sort_by: "vote_average.desc", "vote_count.gte": v(400), "vote_average.gte": 6.8 });
     return p;
   }
 
@@ -562,22 +684,25 @@
   }
 
   async function findBuddyPick() {
-    el.buddyBody.innerHTML = `<div class="pass"><div class="spinner"></div><h2>Finding your perfect match…</h2><p class="hint">Checking every streaming service${state.services.size ? " you have" : ""}</p></div>`;
+    const K = KINDS[buddy.kind];
+    el.buddyBody.innerHTML = `<div class="pass"><div class="spinner"></div><h2>Finding your perfect ${K.one}…</h2><p class="hint">Checking every streaming service${state.services.size ? " you have" : ""}</p></div>`;
     try {
       const plan = buddyPlan();
+      const path = `/discover/${plan.kind}`;
       let pool = [];
       for (let relax = 0; relax <= 3 && pool.length < 6; relax++) {
-        const params = buddyParams(plan, relax);
-        const first = await tmdb("/discover/movie", { ...params, page: 1 });
+        const params = await buddyParams(plan, relax);
+        const first = await tmdb(path, { ...params, page: 1 });
         let results = first.results;
         // Grab a second, random page for variety.
         if (first.total_pages > 1) {
           const page = 2 + Math.floor(Math.random() * Math.min(first.total_pages - 1, 4));
-          results = results.concat((await tmdb("/discover/movie", { ...params, page })).results);
+          results = results.concat((await tmdb(path, { ...params, page })).results);
         }
         const seen = new Set(pool.map((m) => m.id));
-        for (const m of results) {
-          if (seen.has(m.id) || m.genre_ids.some((g) => plan.nope.includes(g))) continue;
+        for (const r of results) {
+          const m = norm(r, plan.kind);
+          if (seen.has(m.id) || m.genre_ids.some((g) => plan.nope.genres.includes(g))) continue;
           seen.add(m.id);
           pool.push(m);
         }
@@ -607,7 +732,7 @@
     if (sharedMoods.length) parts.push(`You both wanted ${sharedMoods.map(lbl).join(" and ")}.`);
     else if ((A.moods || []).length && (B.moods || []).length) parts.push(`A blend of ${esc(pname(0))}'s ${lbl(A.moods[0])} and ${esc(pname(1))}'s ${lbl(B.moods[0])}.`);
     if (plan.runtime && !plan.relaxed) parts.push(`Under ${plan.runtime} minutes.`);
-    if (plan.nope.length) parts.push(`No ${plan.nope.map((g) => (NOPE_GENRES.find(([id]) => id === g) || [0, ""])[1].replace(/^\S+\s/, "").toLowerCase()).join(", ")}.`);
+    if (plan.nopeMovie.length) parts.push(`No ${plan.nopeMovie.map((g) => (NOPE_GENRES.find(([id]) => id === g) || [0, ""])[1].replace(/^\S+\s/, "").toLowerCase()).join(", ")}.`);
     if (plan.fame === "gem") parts.push("A hidden gem, as requested 💎");
     if (plan.relaxed >= 2) parts.push("(We had to stretch your answers a bit to find something streaming.)");
     return parts.join(" ");
@@ -625,33 +750,47 @@
     const alts = rest.slice(0, 3);
     buddy.shown.add(pick.id);
     el.buddyBody.innerHTML = `<div class="buddy-step"><div class="spinner"></div></div>`;
-    const s = await streamingFor(pick.id).catch(() => ({ list: [] }));
+    const s = await streamingFor(pick.kind, pick.id).catch(() => ({ list: [] }));
+    const emoji = KINDS[pick.kind].emoji;
     el.buddyBody.innerHTML = `<div class="buddy-step">
       <div class="who">🎉 Tonight's pick</div>
       <div class="pick">
-        ${pick.poster_path ? `<img src="${IMG}w342${pick.poster_path}" alt="">` : `<div class="poster"><div class="noimg">🎬</div></div>`}
+        ${pick.poster_path ? `<img src="${IMG}w342${pick.poster_path}" alt="">` : `<div class="poster"><div class="noimg">${emoji}</div></div>`}
         <div>
-          <h2>${esc(pick.title)} <span class="card-year">${year(pick.release_date)}</span></h2>
+          <h2>${esc(pick.title)} <span class="card-year">${year(pick.date)}</span></h2>
           <div class="match"><span>${esc(pname(0))}: ${pick._a}% match</span><span>${esc(pname(1))}: ${pick._b}% match</span></div>
           <p class="why">${whyText(buddy.plan)}</p>
           <p>${esc((pick.overview || "").slice(0, 260))}${(pick.overview || "").length > 260 ? "…" : ""}</p>
           ${s.list.length ? `<div class="logos">${logosHTML(s.list)}</div>` : ""}
           <div class="actions">
-            <button class="primary" type="button" data-details="${pick.id}">Where to watch</button>
+            <button class="primary" type="button" data-details="${pick.id}" data-kind="${pick.kind}">Where to watch</button>
             <button class="secondary" type="button" data-buddy="shuffle">🎲 Not feeling it</button>
             <button class="link-btn" type="button" data-buddy="restart">Start over</button>
           </div>
         </div>
       </div>
       ${alts.length ? `<h3 class="why" style="margin-top:24px">Also a good match</h3><div class="alts">${alts.map((m) => `
-        <button type="button" class="card" data-details="${m.id}">
-          <div class="poster">${m.poster_path ? `<img src="${IMG}w185${m.poster_path}" alt="" loading="lazy">` : `<div class="noimg">🎬</div>`}</div>
+        <button type="button" class="card" data-details="${m.id}" data-kind="${m.kind}">
+          <div class="poster">${m.poster_path ? `<img src="${IMG}w185${m.poster_path}" alt="" loading="lazy">` : `<div class="noimg">${emoji}</div>`}</div>
           <div class="card-body"><div class="card-title">${esc(m.title)}</div><div class="card-year">${Math.round((m._a + m._b) / 2)}% match</div></div>
         </button>`).join("")}</div>` : ""}
     </div>`;
   }
 
   // ---------- Events ----------
+  function setKind(kind) {
+    if (kind === state.kind) return;
+    state.kind = kind;
+    store.set("kind", kind);
+    state.genre = ""; // genre ids differ between movies and TV
+    renderKind();
+    renderGenres();
+    run();
+  }
+
+  el.kind.addEventListener("click", (ev) => { const b = ev.target.closest("[data-kind]"); if (b) setKind(b.dataset.kind); });
+  el.status.addEventListener("click", (ev) => { const b = ev.target.closest("[data-switch-kind]"); if (b) setKind(b.dataset.switchKind); });
+
   el.searchForm.addEventListener("submit", (ev) => {
     ev.preventDefault();
     state.query = el.q.value.trim();
@@ -702,7 +841,7 @@
     run();
   });
   el.more.addEventListener("click", () => run(false));
-  el.grid.addEventListener("click", (ev) => { const c = ev.target.closest(".card[data-id]"); if (c) openDetails(c.dataset.id); });
+  el.grid.addEventListener("click", (ev) => { const c = ev.target.closest(".card[data-id]"); if (c) openDetails(c.dataset.kind, c.dataset.id); });
 
   for (const d of [el.details, el.buddy]) {
     d.addEventListener("click", (ev) => {
@@ -716,14 +855,21 @@
     ev.preventDefault();
     const f = ev.target;
     buddy.names = [f.a.value.trim(), f.b.value.trim()];
+    buddy.qs = BUDDY_QS.filter((q) => !(q.movieOnly && buddy.kind !== "movie"));
     buddy.player = 0; buddy.q = 0;
     renderQuestion();
   });
   el.buddyBody.addEventListener("click", (ev) => {
+    const bk = ev.target.closest("[data-bkind]");
+    if (bk) {
+      buddy.kind = bk.dataset.bkind;
+      bk.parentElement.querySelectorAll("[data-bkind]").forEach((b) => b.setAttribute("aria-pressed", b === bk));
+      return;
+    }
     const opt = ev.target.closest("[data-opt]");
     if (opt) return chooseOption(opt.dataset.opt);
     const det = ev.target.closest("[data-details]");
-    if (det) return openDetails(det.dataset.details);
+    if (det) return openDetails(det.dataset.kind, det.dataset.details);
     const act = ev.target.closest("[data-buddy]");
     if (!act) return;
     const a = act.dataset.buddy;
@@ -732,15 +878,12 @@
     else if (a === "pass") renderQuestion();
     else if (a === "shuffle") showBuddyPick();
     else if (a === "retry") findBuddyPick();
-    else if (a === "restart") openBuddyRestart();
+    else if (a === "restart") { resetBuddy(); renderBuddyNames(); }
   });
-  function openBuddyRestart() {
-    Object.assign(buddy, { answers: [{}, {}], player: 0, q: 0, pool: [], shown: new Set(), plan: null });
-    renderBuddyNames();
-  }
 
   // ---------- Boot ----------
   async function start() {
+    renderKind();
     renderMoods();
     if (!apiKey()) { showSetup(); return; }
     el.setup.hidden = true;
