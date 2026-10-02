@@ -838,7 +838,7 @@
     const lbl = (id) => `${MOOD[id].emoji} ${MOOD[id].label.toLowerCase()}`;
     const parts = [];
     if (sharedMoods.length) parts.push(`You both wanted ${sharedMoods.map(lbl).join(" and ")}.`);
-    else if ((A.moods || []).length && (B.moods || []).length) parts.push(`A blend of ${esc(pname(0))}'s ${lbl(A.moods[0])} and ${esc(pname(1))}'s ${lbl(B.moods[0])}.`);
+    else if ((A.moods || []).length && (B.moods || []).length) parts.push(`A blend of ${pname(0)}'s ${lbl(A.moods[0])} and ${pname(1)}'s ${lbl(B.moods[0])}.`);
     if (plan.runtime && !plan.relaxed) parts.push(`Under ${plan.runtime} minutes.`);
     if (plan.nopeMovie.length) parts.push(`No ${plan.nopeMovie.map((g) => (NOPE_GENRES.find(([id]) => id === g) || [0, ""])[1].replace(/^\S+\s/, "").toLowerCase()).join(", ")}.`);
     if (plan.fame === "gem") parts.push("A hidden gem, as requested 💎");
@@ -857,6 +857,7 @@
     const [pick, ...rest] = remaining;
     const alts = rest.slice(0, 3);
     buddy.shown.add(pick.id);
+    buddy.current = pick;
     remember(pick);
     el.buddyBody.innerHTML = `<div class="buddy-step"><div class="spinner"></div></div>`;
     const s = await streamingFor(pick.kind, pick.id).catch(() => ({ list: [] }));
@@ -868,12 +869,13 @@
         <div>
           <h2>${esc(pick.title)} <span class="card-year">${year(pick.date)}</span></h2>
           <div class="match"><span>${esc(pname(0))}: ${pick._a}% match</span><span>${esc(pname(1))}: ${pick._b}% match</span></div>
-          <p class="why">${whyText(buddy.plan)}</p>
+          <p class="why">${esc(whyText(buddy.plan))}</p>
           <p>${esc((pick.overview || "").slice(0, 260))}${(pick.overview || "").length > 260 ? "…" : ""}</p>
           ${s.list.length ? `<div class="logos">${logosHTML(s.list)}</div>` : ""}
           <div class="actions">
             <button class="primary" type="button" data-details="${pick.id}" data-kind="${pick.kind}">Where to watch</button>
             ${saveBtn(pick)}
+            <button class="secondary" type="button" data-buddy="share">🔗 Share</button>
             <button class="secondary" type="button" data-buddy="shuffle">🎲 Not feeling it</button>
             <button class="link-btn" type="button" data-buddy="restart">Start over</button>
           </div>
@@ -886,6 +888,87 @@
         </button>`).join("")}</div>` : ""}
     </div>`;
   }
+
+  // ---------- Sharing a Buddy Mode pick ----------
+  // Everything needed to show the pick lives in the link itself (no database):
+  // ?pick=movie-123&a=Alex&b=Sam&ma=92&mb=85&why=...
+  function shareUrl(p) {
+    const u = new URL(location.pathname, location.origin);
+    u.search = new URLSearchParams({ pick: keyOf(p), a: buddy.names[0], b: buddy.names[1], ma: p._a, mb: p._b, why: whyText(buddy.plan) }).toString();
+    return u.href;
+  }
+
+  async function sharePick(btn) {
+    const p = buddy.current;
+    if (!p) return;
+    const url = shareUrl(p);
+    const text = `${pname(0)} & ${pname(1)} are watching ${p.title} tonight 🍿`;
+    if (navigator.share) {
+      try { await navigator.share({ title: p.title, text, url }); return; }
+      catch (e) { if (e.name === "AbortError") return; /* otherwise fall back to copying */ }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      btn.textContent = "✓ Link copied";
+      setTimeout(() => { btn.textContent = "🔗 Share"; }, 2500);
+    } catch {
+      // Clipboard blocked: show the link so it can be copied by hand.
+      if (!el.buddyBody.querySelector(".share-url")) {
+        btn.closest(".actions").insertAdjacentHTML("afterend", `<input class="share-url" readonly value="${esc(url)}" aria-label="Share link">`);
+      }
+      const input = el.buddyBody.querySelector(".share-url");
+      input.focus(); input.select();
+    }
+  }
+
+  function readSharedPick() {
+    const q = new URLSearchParams(location.search);
+    const m = /^(movie|tv)-(\d{1,9})$/.exec(q.get("pick") || "");
+    if (!m) return null;
+    const pct = (v) => { const n = parseInt(v, 10); return n >= 0 && n <= 100 ? n : null; };
+    const txt = (v, max) => (v || "").trim().slice(0, max);
+    return { kind: m[1], id: m[2], a: txt(q.get("a"), 20), b: txt(q.get("b"), 20), ma: pct(q.get("ma")), mb: pct(q.get("mb")), why: txt(q.get("why"), 300) };
+  }
+
+  async function showSharedPick(sp) {
+    el.buddyBody.innerHTML = `<div class="buddy-step"><div class="spinner"></div></div>`;
+    el.buddy.showModal();
+    try {
+      const raw = await cached(`/${sp.kind}/${sp.id}`, { append_to_response: "watch/providers,videos" });
+      const m = norm(raw, sp.kind);
+      m.genre_ids = (m.genres || []).map((g) => g.id);
+      remember(m);
+      const s = pickStreaming(m["watch/providers"]);
+      const who = sp.a && sp.b ? `${sp.a} & ${sp.b}'s pick` : "A Buddy Mode pick";
+      const chips = [[sp.a || "Player 1", sp.ma], [sp.b || "Player 2", sp.mb]].filter(([, v]) => v !== null)
+        .map(([n, v]) => `<span>${esc(n)}: ${v}% match</span>`).join("");
+      el.buddyBody.innerHTML = `<div class="buddy-step">
+        <div class="who">🎟️ ${esc(who)}</div>
+        <div class="pick">
+          ${m.poster_path ? `<img src="${IMG}w342${m.poster_path}" alt="">` : `<div class="poster"><div class="noimg">${KINDS[m.kind].emoji}</div></div>`}
+          <div>
+            <h2>${esc(m.title)} <span class="card-year">${year(m.date)}</span></h2>
+            ${chips ? `<div class="match">${chips}</div>` : ""}
+            ${sp.why ? `<p class="why">${esc(sp.why)}</p>` : ""}
+            <p>${esc((m.overview || "").slice(0, 260))}${(m.overview || "").length > 260 ? "…" : ""}</p>
+            ${s.list.length ? `<div class="logos">${logosHTML(s.list)}</div>` : `<p class="why">Not streaming in ${esc(regionName())} right now.</p>`}
+            <div class="actions">
+              <button class="primary" type="button" data-details="${m.id}" data-kind="${m.kind}">Where to watch</button>
+              ${saveBtn(m)}
+              <button class="secondary" type="button" data-buddy="restart">👯 Try Buddy Mode</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    } catch (e) {
+      el.buddyBody.innerHTML = `<div class="pass"><h2>Couldn't load this pick</h2><p class="hint">The link may be broken. Try Buddy Mode yourselves!</p><button class="primary" type="button" data-buddy="restart">👯 Start Buddy Mode</button></div>`;
+    }
+  }
+
+  // Once a shared pick is closed, drop it from the address bar so a refresh doesn't reopen it.
+  el.buddy.addEventListener("close", () => {
+    if (new URLSearchParams(location.search).has("pick")) history.replaceState(null, "", location.pathname);
+  });
 
   // ---------- Events ----------
   function setKind(kind) {
@@ -1004,6 +1087,7 @@
     else if (a === "pass") renderQuestion();
     else if (a === "shuffle") showBuddyPick();
     else if (a === "retry") findBuddyPick();
+    else if (a === "share") sharePick(act);
     else if (a === "restart") { resetBuddy(); renderBuddyNames(); }
   });
 
@@ -1022,6 +1106,8 @@
     }
     el.forgetKey.hidden = useProxy;
     run();
+    const shared = readSharedPick();
+    if (shared) showSharedPick(shared);
   }
 
   start();

@@ -8,6 +8,7 @@ A free, simple movie and TV finder: search every streaming service at once and s
 - **My list**: tap ♡ on any movie or show to save it for later. "My list" shows everything you saved, with where each one is streaming right now. Saved in your browser, no account needed.
 - **My services**: tap the services you pay for to see only what's on them (remembered in your browser).
 - **Buddy Mode**: you and a friend each answer 6 quick questions, and StreamScout picks a movie or show you'll both like, with a match score for each of you.
+  Tap **🔗 Share** to send the pick as a link; it opens with your match scores and where to stream it in their country.
 - Works in any country. Pick yours in the top-right.
 
 Movie data comes from [TMDB](https://www.themoviedb.org/), and streaming availability from [JustWatch](https://www.justwatch.com/) (via TMDB).
