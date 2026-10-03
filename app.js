@@ -14,21 +14,21 @@
   const CURRENT_YEAR = new Date().getFullYear();
   const TODAY = new Date().toISOString().slice(0, 10);
 
-  const KINDS = { movie: { one: "movie", many: "movies", emoji: "🎬" }, tv: { one: "show", many: "TV shows", emoji: "📺" } };
+  const KINDS = { movie: { one: "movie", many: "movies", icon: "film" }, tv: { one: "show", many: "TV shows", icon: "tv" } };
 
   // Moods are written in TMDB movie genre ids; TV equivalents are derived below.
   const MOODS = [
-    { id: "laugh", emoji: "😂", label: "Make me laugh", genres: [35], without: [27, 53] },
-    { id: "cozy", emoji: "🛋️", label: "Cozy & comforting", genres: [10751, 16, 35], without: [27, 53, 80, 10752] },
-    { id: "thrill", emoji: "💥", label: "Adrenaline rush", genres: [28, 53] },
-    { id: "scary", emoji: "😱", label: "Scare me", genres: [27] },
-    { id: "romance", emoji: "💘", label: "Swoon-worthy", genres: [10749] },
-    { id: "mind", emoji: "🧠", label: "Mind-bending", genres: [878, 9648] },
-    { id: "cry", emoji: "😭", label: "A good cry", genres: [18], without: [35, 27], extra: { "vote_average.gte": 7 } },
-    { id: "escape", emoji: "🌍", label: "Epic escape", genres: [12, 14] },
-    { id: "crime", emoji: "🕵️", label: "Whodunit", genres: [80, 9648] },
-    { id: "learn", emoji: "📚", label: "Learn something", genres: [99, 36] },
-    { id: "acclaimed", emoji: "🏆", label: "Critics' darlings", genres: [], extra: { "vote_average.gte": 7.8, "vote_count.gte": 1500 } },
+    { id: "laugh", icon: "laugh", label: "Make me laugh", genres: [35], without: [27, 53] },
+    { id: "cozy", icon: "sofa", label: "Cozy & comforting", genres: [10751, 16, 35], without: [27, 53, 80, 10752] },
+    { id: "thrill", icon: "zap", label: "Adrenaline rush", genres: [28, 53] },
+    { id: "scary", icon: "ghost", label: "Scare me", genres: [27] },
+    { id: "romance", icon: "heart", label: "Swoon-worthy", genres: [10749] },
+    { id: "mind", icon: "atom", label: "Mind-bending", genres: [878, 9648] },
+    { id: "cry", icon: "droplet", label: "A good cry", genres: [18], without: [35, 27], extra: { "vote_average.gte": 7 } },
+    { id: "escape", icon: "compass", label: "Epic escape", genres: [12, 14] },
+    { id: "crime", icon: "eye", label: "Whodunit", genres: [80, 9648] },
+    { id: "learn", icon: "book", label: "Learn something", genres: [99, 36] },
+    { id: "acclaimed", icon: "award", label: "Critics' darlings", genres: [], extra: { "vote_average.gte": 7.8, "vote_count.gte": 1500 } },
   ];
   const MOOD = Object.fromEntries(MOODS.map((m) => [m.id, m]));
 
@@ -50,6 +50,8 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const year = (d) => (d ? d.slice(0, 4) : "");
   const uniq = (a) => [...new Set(a)];
+  // Inline SVG from the sprite in index.html.
+  const icon = (name, cls = "") => `<svg class="icon${cls ? " " + cls : ""}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
   const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
   const store = {
@@ -191,7 +193,7 @@
 
   function renderMoods() {
     el.moods.innerHTML = MOODS.map((m) =>
-      `<button type="button" class="chip" data-mood="${m.id}" aria-pressed="${state.mood === m.id}">${m.emoji} ${esc(m.label)}</button>`
+      `<button type="button" class="chip" data-mood="${m.id}" aria-pressed="${state.mood === m.id}">${icon(m.icon)}${esc(m.label)}</button>`
     ).join("");
   }
 
@@ -249,8 +251,8 @@
   function cardHTML(m) {
     const poster = m.poster_path
       ? `<img src="${IMG}w342${m.poster_path}" alt="" loading="lazy">`
-      : `<div class="noimg">${KINDS[m.kind].emoji}</div>`;
-    const rating = m.vote_count > 10 ? `<span class="rating">★ ${m.vote_average.toFixed(1)}</span>` : "";
+      : `<div class="noimg">${icon(KINDS[m.kind].icon)}</div>`;
+    const rating = m.vote_count > 10 ? `<span class="rating">${icon("star")}${m.vote_average.toFixed(1)}</span>` : "";
     return `<button type="button" class="card" data-id="${m.id}" data-kind="${m.kind}">
       <div class="poster">${poster}${rating}</div>
       <div class="card-body">
@@ -376,7 +378,7 @@
       const checked = await mapLimit(top, 8, async (m) => (await streamingFor(other, m.id).catch(() => ({ list: [] }))).list.length);
       const n = checked.filter(Boolean).length;
       if (req !== state.req || !n) return;
-      el.status.innerHTML = `${esc(el.status.textContent)} <button type="button" class="link-btn" data-switch-kind="${other}">But ${n} ${n === 1 ? KINDS[other].one : KINDS[other].many} match. Show ${KINDS[other].many} →</button>`;
+      el.status.innerHTML = `${esc(el.status.textContent)} <button type="button" class="link-btn" data-switch-kind="${other}">But ${n} ${n === 1 ? KINDS[other].one : KINDS[other].many} match. Show ${KINDS[other].many} ${icon("arrow-right")}</button>`;
     } catch { /* suggestion is best-effort */ }
   }
 
@@ -488,12 +490,12 @@
               <h3>Stream it now in ${esc(regionName())}</h3>
               ${s.list.length ? `<div class="providers">${s.list.map((p) => `
                 <div class="provider">${p.logo_path ? `<img src="${IMG}w92${p.logo_path}" alt="">` : ""}
-                  <div>${esc(p.provider_name)}<small>${TYPE_LABEL[p.type]}${state.services.has(p.provider_id) ? " · ✓ you have this" : ""}</small></div>
+                  <div>${esc(p.provider_name)}<small>${TYPE_LABEL[p.type]}${state.services.has(p.provider_id) ? " · You have this" : ""}</small></div>
                 </div>`).join("")}</div>` : `<p class="why">Not streaming here right now.</p>`}
             </div>
             <div class="actions">
-              ${s.link ? `<a class="primary" href="${esc(s.link)}" target="_blank" rel="noopener">Where to watch ↗</a>` : ""}
-              ${trailer ? `<a class="secondary" href="https://www.youtube.com/watch?v=${esc(trailer.key)}" target="_blank" rel="noopener">▶ Trailer</a>` : ""}
+              ${s.link ? `<a class="primary" href="${esc(s.link)}" target="_blank" rel="noopener">Where to watch ${icon("external")}</a>` : ""}
+              ${trailer ? `<a class="secondary" href="https://www.youtube.com/watch?v=${esc(trailer.key)}" target="_blank" rel="noopener">${icon("play")}Trailer</a>` : ""}
             </div>
           </div>
         </div>`;
@@ -503,20 +505,20 @@
   }
 
   // ---------- Buddy mode ----------
-  const NOPE_GENRES = [[27, "😱 Horror"], [10749, "💘 Romance"], [16, "🧸 Animation"], [10402, "🎵 Musicals"], [99, "📚 Documentary"], [10752, "🪖 War"], [37, "🤠 Western"], [878, "👽 Sci-fi"], [14, "🧙 Fantasy"], [18, "🎭 Heavy drama"]];
+  const NOPE_GENRES = [[27, "Horror"], [10749, "Romance"], [16, "Animation"], [10402, "Musicals"], [99, "Documentary"], [10752, "War"], [37, "Western"], [878, "Sci-fi"], [14, "Fantasy"], [18, "Heavy drama"]];
   const BUDDY_QS = [
     { id: "moods", q: "What are you in the mood for?", hint: "Pick up to 2", multi: 2,
-      options: MOODS.filter((m) => m.id !== "acclaimed").map((m) => ({ value: m.id, label: `${m.emoji} ${m.label}` })) },
+      options: MOODS.filter((m) => m.id !== "acclaimed").map((m) => ({ value: m.id, label: m.label, icon: m.icon })) },
     { id: "brain", q: "How much brainpower is left in the tank?",
-      options: [{ value: "low", label: "🫠 Running on fumes" }, { value: "mid", label: "🙂 A normal amount" }, { value: "high", label: "🤓 Bring on the plot twists" }] },
+      options: [{ value: "low", label: "Running on fumes" }, { value: "mid", label: "A normal amount" }, { value: "high", label: "Bring on the plot twists" }] },
     { id: "length", q: "How long can you commit?", movieOnly: true,
-      options: [{ value: 100, label: "⏱️ Under 100 minutes" }, { value: 135, label: "🎬 A normal movie (up to ~2h15)" }, { value: 0, label: "🏔️ Epic? I'm in" }] },
+      options: [{ value: 100, label: "Under 100 minutes" }, { value: 135, label: "A normal movie (up to ~2h15)" }, { value: 0, label: "Epic? I'm in" }] },
     { id: "era", q: "Pick an era",
-      options: [{ value: "classic", label: "📼 Classics (before 1990)" }, { value: "retro", label: "💿 90s & 2000s" }, { value: "modern", label: "📱 2010 and newer" }, { value: "any", label: "🤷 Don't care" }] },
+      options: [{ value: "classic", label: "Classics (before 1990)" }, { value: "retro", label: "90s & 2000s" }, { value: "modern", label: "2010 and newer" }, { value: "any", label: "Don't care" }] },
     { id: "nope", q: "Any hard no's?", hint: "Pick as many as you like, or skip", multi: 99, optional: true,
       options: NOPE_GENRES.map(([value, label]) => ({ value, label })) },
     { id: "fame", q: "Crowd-pleaser or hidden gem?",
-      options: [{ value: "crowd", label: "🍿 Crowd-pleaser" }, { value: "gem", label: "💎 Hidden gem" }, { value: "either", label: "⚖️ Either works" }] },
+      options: [{ value: "crowd", label: "Crowd-pleaser" }, { value: "gem", label: "Hidden gem" }, { value: "either", label: "Either works" }] },
   ];
   const ERAS = { classic: [1900, 1989], retro: [1990, 2009], modern: [2010, CURRENT_YEAR], any: [1900, CURRENT_YEAR] };
 
@@ -537,7 +539,7 @@
 
   function renderBuddyNames() {
     el.buddyBody.innerHTML = `<div class="buddy-step">
-      <h2>👯 Buddy Mode</h2>
+      <h2>${icon("users", "title-icon")}Buddy Mode</h2>
       <p class="hint">Each of you answers a few quick questions on this device. Then we'll find something you'll <em>both</em> like${state.services.size ? ", on your services" : ""}.</p>
       <form data-names>
         <div class="names">
@@ -546,18 +548,18 @@
         </div>
         <p class="hint">What are we watching?</p>
         <div class="segmented" data-buddy-kind>
-          ${Object.entries(KINDS).map(([k, K]) => `<button type="button" data-bkind="${k}" aria-pressed="${buddy.kind === k}">${K.emoji} A ${K.one}</button>`).join("")}
+          ${Object.entries(KINDS).map(([k, K]) => `<button type="button" data-bkind="${k}" aria-pressed="${buddy.kind === k}">${icon(K.icon)}A ${K.one}</button>`).join("")}
         </div>
-        <div class="step-nav"><span></span><button class="primary" type="submit">Let's go →</button></div>
+        <div class="step-nav"><span></span><button class="primary" type="submit">Let's go ${icon("arrow-right")}</button></div>
       </form>
     </div>`;
   }
 
   function renderPass() {
     el.buddyBody.innerHTML = `<div class="pass">
-      <div class="big">🔄</div>
+      <div class="big">${icon("smartphone")}</div>
       <h2>Pass it to ${esc(pname(1))}!</h2>
-      <p class="hint">No peeking at ${esc(pname(0))}'s answers 👀</p>
+      <p class="hint">No peeking at ${esc(pname(0))}'s answers.</p>
       <button class="primary" type="button" data-buddy="pass">I'm ${esc(pname(1))}, let's go</button>
     </div>`;
   }
@@ -573,10 +575,10 @@
       <div class="who">${esc(pname(buddy.player))} · ${buddy.q + 1}/${buddy.qs.length}</div>
       <h2>${esc(Q.q)}</h2>
       <p class="hint">${esc(Q.hint || "")}</p>
-      <div class="options">${Q.options.map((o) => `<button type="button" class="option" data-opt="${esc(o.value)}" aria-pressed="${sel.includes(o.value)}">${esc(o.label)}</button>`).join("")}</div>
+      <div class="options">${Q.options.map((o) => `<button type="button" class="option" data-opt="${esc(o.value)}" aria-pressed="${sel.includes(o.value)}">${o.icon ? icon(o.icon) : ""}<span>${esc(o.label)}</span></button>`).join("")}</div>
       <div class="step-nav">
-        <button type="button" class="secondary" data-buddy="back">← Back</button>
-        ${Q.multi ? `<button type="button" class="primary" data-buddy="next" ${!Q.optional && !sel.length ? "disabled" : ""}>${Q.optional && !sel.length ? "Skip →" : "Next →"}</button>` : ""}
+        <button type="button" class="secondary" data-buddy="back">${icon("arrow-left")}Back</button>
+        ${Q.multi ? `<button type="button" class="primary" data-buddy="next" ${!Q.optional && !sel.length ? "disabled" : ""}>${Q.optional && !sel.length ? "Skip" : "Next"} ${icon("arrow-right")}</button>` : ""}
       </div>
     </div>`;
   }
@@ -727,13 +729,13 @@
   function whyText(plan) {
     const [A, B] = buddy.answers;
     const sharedMoods = (A.moods || []).filter((m) => (B.moods || []).includes(m));
-    const lbl = (id) => `${MOOD[id].emoji} ${MOOD[id].label.toLowerCase()}`;
+    const lbl = (id) => MOOD[id].label.toLowerCase();
     const parts = [];
     if (sharedMoods.length) parts.push(`You both wanted ${sharedMoods.map(lbl).join(" and ")}.`);
     else if ((A.moods || []).length && (B.moods || []).length) parts.push(`A blend of ${esc(pname(0))}'s ${lbl(A.moods[0])} and ${esc(pname(1))}'s ${lbl(B.moods[0])}.`);
     if (plan.runtime && !plan.relaxed) parts.push(`Under ${plan.runtime} minutes.`);
-    if (plan.nopeMovie.length) parts.push(`No ${plan.nopeMovie.map((g) => (NOPE_GENRES.find(([id]) => id === g) || [0, ""])[1].replace(/^\S+\s/, "").toLowerCase()).join(", ")}.`);
-    if (plan.fame === "gem") parts.push("A hidden gem, as requested 💎");
+    if (plan.nopeMovie.length) parts.push(`No ${plan.nopeMovie.map((g) => (NOPE_GENRES.find(([id]) => id === g) || [0, ""])[1].toLowerCase()).join(", ")}.`);
+    if (plan.fame === "gem") parts.push("A hidden gem, as requested.");
     if (plan.relaxed >= 2) parts.push("(We had to stretch your answers a bit to find something streaming.)");
     return parts.join(" ");
   }
@@ -741,7 +743,7 @@
   async function showBuddyPick() {
     const remaining = buddy.pool.filter((m) => !buddy.shown.has(m.id));
     if (!remaining.length) {
-      el.buddyBody.innerHTML = `<div class="pass"><div class="big">🤷</div><h2>We're out of ideas</h2>
+      el.buddyBody.innerHTML = `<div class="pass"><div class="big">${icon("frown")}</div><h2>We're out of ideas</h2>
         <p class="hint">Nothing streaming matched your combined answers${state.services.size ? " on your services. Try clearing “My services”" : ""}.</p>
         <button class="primary" type="button" data-buddy="restart">Start over</button></div>`;
       return;
@@ -751,11 +753,11 @@
     buddy.shown.add(pick.id);
     el.buddyBody.innerHTML = `<div class="buddy-step"><div class="spinner"></div></div>`;
     const s = await streamingFor(pick.kind, pick.id).catch(() => ({ list: [] }));
-    const emoji = KINDS[pick.kind].emoji;
+    const kindIcon = icon(KINDS[pick.kind].icon);
     el.buddyBody.innerHTML = `<div class="buddy-step">
-      <div class="who">🎉 Tonight's pick</div>
+      <div class="who">${icon("sparkles")}Tonight's pick</div>
       <div class="pick">
-        ${pick.poster_path ? `<img src="${IMG}w342${pick.poster_path}" alt="">` : `<div class="poster"><div class="noimg">${emoji}</div></div>`}
+        ${pick.poster_path ? `<img src="${IMG}w342${pick.poster_path}" alt="">` : `<div class="poster"><div class="noimg">${kindIcon}</div></div>`}
         <div>
           <h2>${esc(pick.title)} <span class="card-year">${year(pick.date)}</span></h2>
           <div class="match"><span>${esc(pname(0))}: ${pick._a}% match</span><span>${esc(pname(1))}: ${pick._b}% match</span></div>
@@ -764,14 +766,14 @@
           ${s.list.length ? `<div class="logos">${logosHTML(s.list)}</div>` : ""}
           <div class="actions">
             <button class="primary" type="button" data-details="${pick.id}" data-kind="${pick.kind}">Where to watch</button>
-            <button class="secondary" type="button" data-buddy="shuffle">🎲 Not feeling it</button>
+            <button class="secondary" type="button" data-buddy="shuffle">${icon("shuffle")}Not feeling it</button>
             <button class="link-btn" type="button" data-buddy="restart">Start over</button>
           </div>
         </div>
       </div>
       ${alts.length ? `<h3 class="why" style="margin-top:24px">Also a good match</h3><div class="alts">${alts.map((m) => `
         <button type="button" class="card" data-details="${m.id}" data-kind="${m.kind}">
-          <div class="poster">${m.poster_path ? `<img src="${IMG}w185${m.poster_path}" alt="" loading="lazy">` : `<div class="noimg">${emoji}</div>`}</div>
+          <div class="poster">${m.poster_path ? `<img src="${IMG}w185${m.poster_path}" alt="" loading="lazy">` : `<div class="noimg">${kindIcon}</div>`}</div>
           <div class="card-body"><div class="card-title">${esc(m.title)}</div><div class="card-year">${Math.round((m._a + m._b) / 2)}% match</div></div>
         </button>`).join("")}</div>` : ""}
     </div>`;
