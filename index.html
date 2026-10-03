@@ -13,7 +13,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect x='6' y='14' width='52' height='36' rx='4' fill='%23c8402a'/><rect x='14' y='22' width='36' height='14' rx='2' fill='%23f3ede2'/><circle cx='22' cy='29' r='3' fill='%23c8402a'/><circle cx='42' cy='29' r='3' fill='%23c8402a'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,400..800;1,9..144,400..800&family=Instrument+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,400..800;1,9..144,400..800&family=Instrument+Sans:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -37,32 +37,38 @@
 
   <main>
     <section class="hero">
-      <div class="hero-main">
-        <p class="eyebrow">Tonight's big question</p>
-        <h1>What are we <span class="scribble">watching<svg viewBox="0 0 300 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 16c38-7 70-9 104-6 26 2 40 7 70 5 36-3 70-9 118-6"/></svg></span> tonight?</h1>
-        <p class="tagline">We check every streaming service so you don't have to. If it's here, you can press play on it right now.</p>
+      <h1 class="sr-only" id="hero-title">What are we watching tonight?</h1>
+      <div class="hero-top">
+        <div class="marquee" aria-hidden="true">
+          <div class="marquee-panel">
+            <div class="marquee-cap">Now showing <span>·</span> every service, one shelf</div>
+            <div class="board" id="board"></div>
+          </div>
+        </div>
+        <div class="now-showing" id="now-showing" hidden>
+          <div class="stack" id="stack" aria-label="Popular right now"></div>
+          <span class="note">Popular right now</span>
+        </div>
+      </div>
 
+      <div class="hero-controls">
         <div id="kind" class="kind-toggle" role="group" aria-label="Movies or TV shows">
           <button type="button" data-kind="movie" aria-pressed="true">Movies<svg class="circle" viewBox="0 0 120 50" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M62 5C30 3 6 11 5 25c-1 14 26 21 57 20 30-1 54-9 53-22C114 11 92 4 58 6"/></svg></button>
           <span class="slash" aria-hidden="true">/</span>
           <button type="button" data-kind="tv" aria-pressed="false">TV shows<svg class="circle" viewBox="0 0 120 50" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M62 5C30 3 6 11 5 25c-1 14 26 21 57 20 30-1 54-9 53-22C114 11 92 4 58 6"/></svg></button>
         </div>
-
         <form id="search-form" class="search" role="search">
           <input id="q" type="search" placeholder="Type a title…" autocomplete="off" aria-label="Search by title">
           <button type="submit">Find it <span aria-hidden="true">→</span></button>
         </form>
       </div>
+      <p class="tagline">We check every streaming service so you don't have to. If it shows up here, you can press play on it right now.</p>
 
-      <aside class="ticket-promo">
-        <div class="stub" aria-hidden="true"><span>ADMIT TWO</span></div>
-        <div class="promo-body">
-          <p class="eyebrow">Buddy Mode</p>
-          <h2>Can't agree on anything?</h2>
-          <p>Two people, a handful of quick questions, one pick you'll both actually enjoy.</p>
-          <button id="buddy-open" class="primary" type="button">Settle it <span aria-hidden="true">→</span></button>
-        </div>
-      </aside>
+      <button id="buddy-open" class="buddy-strip" type="button">
+        <span class="strip-stub" aria-hidden="true">ADMIT TWO</span>
+        <span class="strip-text"><b>Can't agree on anything?</b> Two people, a few quick questions, one pick you'll both enjoy.</span>
+        <span class="strip-go">Try Buddy Mode <span aria-hidden="true">→</span></span>
+      </button>
     </section>
 
     <section class="filters" aria-label="Filters">

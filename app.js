@@ -206,12 +206,66 @@
     forgetKey: $("#forget-key"), details: $("#details"), detailsBody: $("#details-body"),
     buddy: $("#buddy"), buddyBody: $("#buddy-body"), buddyOpen: $("#buddy-open"),
     listOpen: $("#list-open"), listCount: $("#list-count"),
+    board: $("#board"), heroTitle: $("#hero-title"), nowShowing: $("#now-showing"), stack: $("#stack"),
   };
+
+  // ---------- The marquee ----------
+  // Each line is a list of [text, color] segments, spelled out in letterboard tiles.
+  const BOARD = {
+    movie: [[["WHAT ARE WE", ""]], [["WATCHING", "red"], [" TONIGHT?", ""]]],
+    tv: [[["WHAT ARE WE", ""]], [["BINGEING", "red"], [" TONIGHT?", ""]]],
+  };
+  let boardShown = null;
+
+  function renderBoard() {
+    const lines = BOARD[state.kind];
+    const text = lines.map((segs) => segs.map(([t]) => t).join(""));
+    const prev = boardShown;
+    boardShown = text;
+    el.board.innerHTML = lines.map((segs, li) => {
+      let n = 0;
+      const tiles = segs.map(([t, color]) => [...t].map((ch) => {
+        const i = n++;
+        if (ch === " ") return `<span class="gap"></span>`;
+        // Hand-placed look: every letter sits a little crooked, but the same way each time.
+        const r = ((((i * 37 + li * 11) % 7) - 3) * 0.55).toFixed(2);
+        const y = ((((i * 53 + li * 7) % 5) - 2) * 0.8).toFixed(1);
+        const flip = prev && prev[li][i] !== ch;
+        return `<span class="tile${color ? " " + color : ""}${flip ? " flip" : ""}" style="--r:${r}deg;--y:${y}px;--d:${i * 45}ms">${esc(ch)}</span>`;
+      }).join("")).join("");
+      return `<div class="row">${tiles}</div>`;
+    }).join("");
+    el.heroTitle.textContent = state.kind === "tv" ? "What are we bingeing tonight?" : "What are we watching tonight?";
+  }
+
+  // "Popular right now": three real posters next to the marquee, independent of the filters.
+  let nowReq = 0;
+  async function loadNowShowing() {
+    const kind = state.kind, req = ++nowReq;
+    try {
+      const data = await cached(`/discover/${kind}`, {
+        watch_region: state.region, with_watch_monetization_types: STREAM_TYPES.join("|"), include_adult: false,
+        sort_by: "popularity.desc", "vote_count.gte": kind === "tv" ? 100 : 300, page: 1,
+        without_genres: kind === "tv" ? TV_ALWAYS_WITHOUT.join(",") : "",
+      });
+      if (req !== nowReq) return;
+      const picks = shuffle(data.results.filter((m) => m.poster_path).slice(0, 12)).slice(0, 3).map((m) => norm(m, kind));
+      picks.forEach(remember);
+      el.stack.innerHTML = picks.map((m, i) =>
+        `<button type="button" class="tape p${i}" data-details="${m.id}" data-kind="${m.kind}" aria-label="${esc(m.title)}" title="${esc(m.title)}"><img src="${IMG}w342${m.poster_path}" alt=""></button>`
+      ).join("");
+      el.nowShowing.hidden = picks.length < 3;
+    } catch {
+      if (req === nowReq) el.nowShowing.hidden = true;
+    }
+  }
 
   // ---------- Rendering: filters ----------
   function renderKind() {
     el.kind.querySelectorAll("[data-kind]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.kind === state.kind));
-    el.q.placeholder = state.kind === "tv" ? "Type a show… try “The Bear”" : "Type a title… try “Paddington”";
+    renderBoard();
+    const roomy = !matchMedia("(max-width: 640px)").matches;
+    el.q.placeholder = state.kind === "tv" ? (roomy ? "Type a show… try “The Bear”" : "Type a show…") : (roomy ? "Type a title… try “Paddington”" : "Type a title…");
   }
 
   function renderMoods() {
@@ -988,6 +1042,7 @@
     state.genre = ""; // genre ids differ between movies and TV
     renderKind();
     renderGenres();
+    loadNowShowing();
     run();
   }
 
@@ -996,6 +1051,7 @@
   el.listOpen.addEventListener("click", () => (state.view === "list" ? run() : showList()));
 
   el.kind.addEventListener("click", (ev) => { const b = ev.target.closest("[data-kind]"); if (b) setKind(b.dataset.kind); });
+  el.stack.addEventListener("click", (ev) => { const b = ev.target.closest("[data-details]"); if (b) openDetails(b.dataset.kind, b.dataset.details); });
   el.status.addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-switch-kind]");
     if (b) setKind(b.dataset.switchKind);
@@ -1051,6 +1107,7 @@
     state.region = el.region.value;
     store.set("region", state.region);
     await loadRegionData().catch(handleError);
+    loadNowShowing();
     if (state.view === "list") showList(); else run();
   });
   el.reset.addEventListener("click", () => {
@@ -1116,6 +1173,7 @@
     }
     el.forgetKey.hidden = useProxy;
     run();
+    loadNowShowing();
     const shared = readSharedPick();
     if (shared) showSharedPick(shared);
   }
