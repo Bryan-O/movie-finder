@@ -15,7 +15,9 @@ Movie data comes from [TMDB](https://www.themoviedb.org/), and streaming availab
 
 ## Look and feel
 
-Designed like a neighborhood video shop or a printed cinema program: warm paper, ink-black type (Fraunces for headlines, Instrument Sans for text, DM Mono for labels), one marquee red, and a few hand-drawn marks. Buddy Mode picks come out as an "admit two" ticket. A darker "lights down" version follows your device's dark mode.
+"Late Show": a repertory-cinema programme. Warm theatre black with a "Lights up" matinee mode (toggle in the top bar, remembered per browser), oversized Barlow Condensed headlines, Newsreader italics for the editorial voice, Barlow for reading, and one cinema red for "press play". Search is the main call to action, with "Popular now" suggestions and a numbered "Top of the pile tonight" list. Buddy Mode picks come out as an admit-two ticket.
+
+Built to the ui-ux-pro-max checklist: 44px touch targets, 4.5:1+ text contrast in both themes, SVG icons (no emoji), visible keyboard focus, `prefers-reduced-motion` respected, and no horizontal scroll from 375px up.
 
 ## How it's built
 
