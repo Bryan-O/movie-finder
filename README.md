@@ -15,7 +15,7 @@ Movie data comes from [TMDB](https://www.themoviedb.org/), and streaming availab
 
 ## Look and feel
 
-"Late Show": a repertory-cinema programme. Warm theatre black with a "Lights up" matinee mode (toggle in the top bar, remembered per browser), oversized Barlow Condensed headlines, Newsreader italics for the editorial voice, Barlow for reading, and one cinema red for "press play". Search is the main call to action, with "Popular now" suggestions and a numbered "Top of the pile tonight" list. Buddy Mode picks come out as an admit-two ticket.
+"Late Show": a repertory-cinema programme. Warm theatre black with a "Lights up" matinee mode (toggle in the top bar, remembered per browser), oversized Barlow Condensed headlines, Newsreader italics for the editorial voice, Barlow for reading, and one cinema red for "press play". The top of the page is kept compact so results show on the first screen: search with "Popular now" suggestions, two scrollable filter rows (mood, services), and Buddy Mode in the top bar. Buddy Mode picks come out as an admit-two ticket.
 
 Built to the ui-ux-pro-max checklist: 44px touch targets, 4.5:1+ text contrast in both themes, SVG icons (no emoji), visible keyboard focus, `prefers-reduced-motion` respected, and no horizontal scroll from 375px up.
 

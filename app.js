@@ -206,7 +206,7 @@
     forgetKey: $("#forget-key"), details: $("#details"), detailsBody: $("#details-body"),
     buddy: $("#buddy"), buddyBody: $("#buddy-body"), buddyOpen: $("#buddy-open"),
     listOpen: $("#list-open"), listCount: $("#list-count"),
-    nowShowing: $("#now-showing"), stack: $("#stack"), popular: $("#popular"), themeToggle: $("#theme-toggle"),
+    popular: $("#popular"), themeToggle: $("#theme-toggle"),
   };
 
   // ---------- Lights up / lights down ----------
@@ -224,34 +224,24 @@
     applyTheme(next);
   });
 
-  // "Top of the pile tonight" plus "Popular now" search suggestions, independent of the filters.
-  let nowReq = 0;
-  async function loadNowShowing() {
-    const kind = state.kind, req = ++nowReq;
+  // "Popular now": quick-search suggestions from what's trending, independent of the filters.
+  let popReq = 0;
+  async function loadPopular() {
+    const kind = state.kind, req = ++popReq;
     try {
       const data = await cached(`/discover/${kind}`, {
         watch_region: state.region, with_watch_monetization_types: STREAM_TYPES.join("|"), include_adult: false,
         sort_by: "popularity.desc", "vote_count.gte": kind === "tv" ? 100 : 300, page: 1,
         without_genres: kind === "tv" ? TV_ALWAYS_WITHOUT.join(",") : "",
       });
-      if (req !== nowReq) return;
-      const ranked = data.results.filter((m) => m.poster_path).map((m) => norm(m, kind));
-      const top = ranked.slice(0, 4);
-      top.forEach(remember);
-      el.stack.innerHTML = top.map((m, i) => `<li>
-        <button type="button" class="tape" data-details="${m.id}" data-kind="${m.kind}">
-          <span class="n">${String(i + 1).padStart(2, "0")}</span>
-          <img src="${IMG}w154${m.poster_path}" alt="" loading="lazy">
-          <span><b>${esc(m.title)}</b><small>${[year(m.date), m.vote_count > 10 ? `★ ${m.vote_average.toFixed(1)}` : ""].filter(Boolean).join(" · ")}</small></span>
-        </button></li>`).join("");
-      el.nowShowing.hidden = top.length < 3;
-      const suggest = ranked.slice(4, 9);
-      el.popular.innerHTML = suggest.length
-        ? `<span class="popular-label">Popular now</span>` + suggest.map((m) => `<button type="button" data-suggest="${esc(m.title)}">${esc(m.title)}</button>`).join("")
+      if (req !== popReq) return;
+      const titles = uniq(data.results.map((m) => m.title || m.name).filter(Boolean)).slice(0, 6);
+      el.popular.innerHTML = titles.length
+        ? `<span class="popular-label">Popular now</span>` + titles.map((t) => `<button type="button" data-suggest="${esc(t)}">${esc(t)}</button>`).join("")
         : "";
-      el.popular.hidden = !suggest.length;
+      el.popular.hidden = !titles.length;
     } catch {
-      if (req === nowReq) { el.nowShowing.hidden = true; el.popular.hidden = true; }
+      if (req === popReq) el.popular.hidden = true;
     }
   }
 
@@ -1035,7 +1025,7 @@
     state.genre = ""; // genre ids differ between movies and TV
     renderKind();
     renderGenres();
-    loadNowShowing();
+    loadPopular();
     run();
   }
 
@@ -1044,14 +1034,12 @@
   el.listOpen.addEventListener("click", () => (state.view === "list" ? run() : showList()));
 
   el.kind.addEventListener("click", (ev) => { const b = ev.target.closest("[data-kind]"); if (b) setKind(b.dataset.kind); });
-  el.stack.addEventListener("click", (ev) => { const b = ev.target.closest("[data-details]"); if (b) openDetails(b.dataset.kind, b.dataset.details); });
   el.popular.addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-suggest]");
     if (!b) return;
     el.q.value = b.dataset.suggest;
     state.query = b.dataset.suggest;
     run(true, true);
-    el.status.scrollIntoView({ behavior: "smooth", block: "start" });
   });
   el.status.addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-switch-kind]");
@@ -1108,7 +1096,7 @@
     state.region = el.region.value;
     store.set("region", state.region);
     await loadRegionData().catch(handleError);
-    loadNowShowing();
+    loadPopular();
     if (state.view === "list") showList(); else run();
   });
   el.reset.addEventListener("click", () => {
@@ -1174,7 +1162,7 @@
     }
     el.forgetKey.hidden = useProxy;
     run();
-    loadNowShowing();
+    loadPopular();
     const shared = readSharedPick();
     if (shared) showSharedPick(shared);
   }
